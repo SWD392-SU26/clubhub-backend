@@ -30,4 +30,6 @@ public class Club
     public ICollection<ClubMember> Members { get; set; } = new List<ClubMember>();
     public ICollection<Event> Events { get; set; } = new List<Event>();
     public ICollection<PointTransaction> PointTransactions { get; set; } = new List<PointTransaction>();
+    public ICollection<Announcement> Announcements { get; set; } = new List<Announcement>();
+    public ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>();
 }

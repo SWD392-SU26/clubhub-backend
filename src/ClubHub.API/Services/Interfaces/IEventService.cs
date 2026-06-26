@@ -1,6 +1,5 @@
 using ClubHub.API.DTOs.Common;
 using ClubHub.API.DTOs.Event;
-using ClubHub.API.Services.Interfaces;
 
 namespace ClubHub.API.Services.Interfaces;
 
@@ -15,5 +14,5 @@ public interface IEventService
     Task<ApiResult<bool>> CancelRegistrationAsync(Guid eventId, Guid userId);
     Task<ApiResult<bool>> CheckInAsync(Guid eventId, Guid userId, Guid requesterId);
     Task<List<EventRegistrationDto>> GetMyRegistrationsAsync(Guid userId);
-    Task<PagedResult<EventRegistrationDto>> GetEventRegistrationsAsync(Guid eventId, int page, int pageSize);
+    Task<PagedResult<EventRegistrationDto>> GetEventRegistrationsAsync(Guid eventId, Guid requesterId, int page, int pageSize);
 }

@@ -57,6 +57,9 @@ builder.Services.AddScoped<IEventService, EventService>();
 builder.Services.AddScoped<IFeedbackService, FeedbackService>();
 builder.Services.AddScoped<IPointService, PointService>();
 builder.Services.AddScoped<IProposalService, ProposalService>();
+builder.Services.AddScoped<IAnnouncementService, AnnouncementService>();
+builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+builder.Services.AddScoped<IAdminStatisticsService, AdminStatisticsService>();
 
 // ── Controllers ───────────────────────────────────────────────────────────────
 builder.Services.AddControllers()
@@ -128,6 +131,7 @@ if (app.Environment.IsDevelopment())
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await db.Database.MigrateAsync();
+    await DataSeeder.SeedAsync(db);
 }
 
 app.Run();

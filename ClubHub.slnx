@@ -2,4 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/ClubHub.API/ClubHub.API.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ClubHub.API.Tests/ClubHub.API.Tests.csproj" />
+  </Folder>
 </Solution>

@@ -20,6 +20,7 @@ public class MembershipController : ControllerBase
 
     /// <summary>[Student] Gửi đơn tham gia CLB</summary>
     [HttpPost("join")]
+    [HttpPost("~/api/clubs/{clubId:guid}/join-requests")]
     public async Task<IActionResult> Join(Guid clubId, [FromBody] JoinClubRequest request)
     {
         var result = await _membershipService.RequestJoinAsync(clubId, GetUserId(), request);
@@ -43,21 +44,23 @@ public class MembershipController : ControllerBase
     public async Task<IActionResult> GetMembers(Guid clubId,
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
-        var result = await _membershipService.GetMembersAsync(clubId, page, pageSize);
+        var result = await _membershipService.GetMembersAsync(clubId, GetUserId(), page, pageSize);
         return Ok(ApiResponse.Ok(result));
     }
 
     /// <summary>[Club Admin] Lấy danh sách đơn chờ duyệt</summary>
     [HttpGet("pending")]
+    [HttpGet("~/api/clubs/{clubId:guid}/join-requests")]
     public async Task<IActionResult> GetPendingRequests(Guid clubId,
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
-        var result = await _membershipService.GetPendingRequestsAsync(clubId, page, pageSize);
+        var result = await _membershipService.GetPendingRequestsAsync(clubId, GetUserId(), page, pageSize);
         return Ok(ApiResponse.Ok(result));
     }
 
     /// <summary>[Club Admin] Duyệt / từ chối đơn tham gia</summary>
     [HttpPut("requests/{membershipId:guid}/review")]
+    [HttpPut("~/api/clubs/{clubId:guid}/join-requests/{membershipId:guid}/review")]
     public async Task<IActionResult> ReviewRequest(Guid clubId, Guid membershipId,
         [FromBody] ReviewMembershipRequest request)
     {
