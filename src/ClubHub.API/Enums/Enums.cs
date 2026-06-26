@@ -31,7 +31,7 @@ public enum ClubCategory
     Volunteer,
     SoftSkills,
     Media,
-    Entrepreneurship
+    Startup
 }
 
 public enum MembershipStatus
@@ -47,7 +47,7 @@ public enum ProposalStatus
     Pending,
     Approved,
     Rejected,
-    NeedsRevision
+    NeedMoreInfo
 }
 
 public enum EventStatus

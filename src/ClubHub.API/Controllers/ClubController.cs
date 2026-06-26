@@ -49,6 +49,16 @@ public class ClubController : ControllerBase
         return Ok(ApiResponse.Ok(result));
     }
 
+    /// <summary>[Club Admin] Xem các CLB mình quản lý</summary>
+    [HttpGet("managed")]
+    [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<ClubSummaryDto>>), 200)]
+    public async Task<IActionResult> GetManagedClubs([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+    {
+        var result = await _clubService.GetManagedClubsAsync(GetUserId(), page, pageSize);
+        return Ok(ApiResponse.Ok(result));
+    }
+
     /// <summary>[Club Admin] Cập nhật thông tin CLB</summary>
     [HttpPut("{clubId:guid}")]
     [Authorize]

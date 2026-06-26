@@ -1,4 +1,15 @@
+using System.ComponentModel.DataAnnotations;
+using ClubHub.API.Enums;
+
 namespace ClubHub.API.DTOs.Point;
+
+public record CreatePointTransactionRequest(
+    [Required] Guid UserId,
+    [Range(-1000, 1000)] int Points,
+    [Required] PointType Type,
+    [MaxLength(300)] string? Note,
+    Guid? ReferenceId
+);
 
 public record PointTransactionDto(
     Guid Id,

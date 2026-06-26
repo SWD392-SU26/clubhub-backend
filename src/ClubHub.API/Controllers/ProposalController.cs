@@ -10,6 +10,7 @@ namespace ClubHub.API.Controllers;
 
 [ApiController]
 [Route("api/proposals")]
+[Route("api/club-proposals")]
 [Authorize]
 [Produces("application/json")]
 public class ProposalController : ControllerBase
@@ -72,6 +73,7 @@ public class ProposalController : ControllerBase
 
     /// <summary>[University Admin] Yêu cầu bổ sung hồ sơ</summary>
     [HttpPut("{id:guid}/request-revision")]
+    [HttpPut("{id:guid}/request-info")]
     [Authorize(Roles = "UniversityAdmin")]
     public async Task<IActionResult> RequestRevision(Guid id, [FromBody] RequestRevisionRequest request)
     {

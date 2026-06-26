@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using ClubHub.API.DTOs.Common;
+using ClubHub.API.DTOs.Point;
 using ClubHub.API.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -28,11 +29,22 @@ public class PointController : ControllerBase
 
     /// <summary>Xem bảng xếp hạng điểm thi đua của CLB</summary>
     [HttpGet("leaderboard")]
+    [HttpGet("ranking")]
     public async Task<IActionResult> GetLeaderboard(Guid clubId,
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
         var result = await _pointService.GetClubLeaderboardAsync(clubId, page, pageSize);
         return Ok(ApiResponse.Ok(result));
+    }
+
+    /// <summary>[Club Admin] Create a point transaction for a club member</summary>
+    [HttpPost("transactions")]
+    public async Task<IActionResult> CreateTransaction(Guid clubId, [FromBody] CreatePointTransactionRequest request)
+    {
+        var result = await _pointService.AddPointTransactionAsync(clubId, request, GetUserId());
+        return result.IsSuccess
+            ? Ok(ApiResponse.Ok(result.Data!))
+            : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
     private Guid GetUserId() =>

@@ -106,7 +106,7 @@ public class EventController : ControllerBase
     public async Task<IActionResult> GetRegistrations(Guid eventId,
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
-        var result = await _eventService.GetEventRegistrationsAsync(eventId, page, pageSize);
+        var result = await _eventService.GetEventRegistrationsAsync(eventId, GetUserId(), page, pageSize);
         return Ok(ApiResponse.Ok(result));
     }
 

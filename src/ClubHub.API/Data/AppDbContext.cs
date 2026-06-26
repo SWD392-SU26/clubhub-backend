@@ -17,6 +17,8 @@ public class AppDbContext : DbContext
     public DbSet<Feedback> Feedbacks => Set<Feedback>();
     public DbSet<PointTransaction> PointTransactions => Set<PointTransaction>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<Announcement> Announcements => Set<Announcement>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -41,6 +43,44 @@ public class AppDbContext : DbContext
             e.HasOne(c => c.Creator)
              .WithMany()
              .HasForeignKey(c => c.CreatedBy)
+             .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Announcement>(e =>
+        {
+            e.HasKey(a => a.Id);
+            e.HasIndex(a => new { a.ClubId, a.IsArchived, a.IsPinned, a.CreatedAt });
+
+            e.HasOne(a => a.Club)
+             .WithMany(c => c.Announcements)
+             .HasForeignKey(a => a.ClubId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(a => a.Creator)
+             .WithMany(u => u.Announcements)
+             .HasForeignKey(a => a.CreatedBy)
+             .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AuditLog>(e =>
+        {
+            e.HasKey(a => a.Id);
+            e.HasIndex(a => new { a.ClubId, a.CreatedAt });
+            e.HasIndex(a => new { a.ClubId, a.TargetUserId, a.CreatedAt });
+
+            e.HasOne(a => a.Club)
+             .WithMany(c => c.AuditLogs)
+             .HasForeignKey(a => a.ClubId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(a => a.ActorUser)
+             .WithMany()
+             .HasForeignKey(a => a.ActorUserId)
+             .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(a => a.TargetUser)
+             .WithMany()
+             .HasForeignKey(a => a.TargetUserId)
              .OnDelete(DeleteBehavior.Restrict);
         });
 

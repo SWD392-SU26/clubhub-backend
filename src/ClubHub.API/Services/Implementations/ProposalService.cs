@@ -30,15 +30,15 @@ public class ProposalService : IProposalService
             Mission = req.Mission,
             Reason = req.Reason,
             ActivityPlan = req.ActivityPlan,
-            FounderInfo = req.FounderInfo,
+            FounderInfo = req.FounderFullName,
             FounderStudentCode = req.FounderStudentCode,
-            FounderIdCardUrl = req.FounderIdCardUrl,
+            FounderIdCardUrl = req.FounderIdentityDocumentUrl,
             ContactEmail = req.ContactEmail,
             ContactPhone = req.ContactPhone,
-            Advisor = req.Advisor,
+            Advisor = req.AdvisorName,
             LogoUrl = req.LogoUrl,
             ProposalFileUrl = req.ProposalFileUrl,
-            Notes = req.Notes,
+            Notes = req.AdditionalNote,
             SubmittedBy = submittedBy
         };
 
@@ -51,7 +51,7 @@ public class ProposalService : IProposalService
     {
         var proposal = await _db.ClubProposals.FindAsync(proposalId);
         if (proposal == null) return ApiResult<bool>.Failure("Hồ sơ không tồn tại.");
-        if (proposal.Status != ProposalStatus.Pending && proposal.Status != ProposalStatus.NeedsRevision)
+        if (proposal.Status != ProposalStatus.Pending && proposal.Status != ProposalStatus.NeedMoreInfo)
             return ApiResult<bool>.Failure("Hồ sơ này đã được xử lý.");
 
         proposal.ReviewedBy = reviewerId;
@@ -84,7 +84,7 @@ public class ProposalService : IProposalService
         if (proposal.Status != ProposalStatus.Pending)
             return ApiResult<bool>.Failure("Chỉ có thể yêu cầu bổ sung khi hồ sơ đang chờ xử lý.");
 
-        proposal.Status = ProposalStatus.NeedsRevision;
+        proposal.Status = ProposalStatus.NeedMoreInfo;
         proposal.RejectionReason = req.RevisionNote;
         proposal.ReviewedBy = reviewerId;
         proposal.ReviewedAt = DateTime.UtcNow;
