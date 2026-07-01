@@ -13,11 +13,13 @@ public class ProposalService : IProposalService
 {
     private readonly AppDbContext _db;
     private readonly IClubService _clubService;
+    private readonly INotificationService _notificationService;
 
-    public ProposalService(AppDbContext db, IClubService clubService)
+    public ProposalService(AppDbContext db, IClubService clubService, INotificationService notificationService)
     {
         _db = db;
         _clubService = clubService;
+        _notificationService = notificationService;
     }
 
     public async Task<ApiResult<ProposalDto>> SubmitAsync(SubmitProposalRequest req, Guid submittedBy)
@@ -74,6 +76,23 @@ public class ProposalService : IProposalService
         }
 
         await _db.SaveChangesAsync();
+
+        // Thông báo cho người nộp hồ sơ
+        if (req.IsApproved)
+            await _notificationService.CreateAsync(
+                proposal.SubmittedBy,
+                "Hồ sơ thành lập CLB đã được duyệt",
+                $"Chúc mừng! Hồ sơ thành lập CLB {proposal.ClubName} của bạn đã được duyệt.",
+                "PROPOSAL_APPROVED");
+        else
+            await _notificationService.CreateAsync(
+                proposal.SubmittedBy,
+                "Hồ sơ thành lập CLB bị từ chối",
+                string.IsNullOrWhiteSpace(proposal.RejectionReason)
+                    ? $"Hồ sơ thành lập CLB {proposal.ClubName} của bạn đã bị từ chối."
+                    : $"Hồ sơ thành lập CLB {proposal.ClubName} của bạn đã bị từ chối. Lý do: {proposal.RejectionReason}",
+                "PROPOSAL_REJECTED");
+
         return ApiResult<bool>.Success(true);
     }
 
@@ -90,6 +109,16 @@ public class ProposalService : IProposalService
         proposal.ReviewedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
+
+        // Thông báo cho người nộp hồ sơ cần bổ sung
+        await _notificationService.CreateAsync(
+            proposal.SubmittedBy,
+            "Hồ sơ cần bổ sung",
+            string.IsNullOrWhiteSpace(req.RevisionNote)
+                ? $"Hồ sơ thành lập CLB {proposal.ClubName} của bạn cần được bổ sung."
+                : $"Hồ sơ thành lập CLB {proposal.ClubName} của bạn cần được bổ sung. Ghi chú: {req.RevisionNote}",
+            "PROPOSAL_REVISION");
+
         return ApiResult<bool>.Success(true);
     }
 

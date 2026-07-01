@@ -11,11 +11,13 @@ public class EventService : IEventService
 {
     private readonly AppDbContext _db;
     private readonly IPointService _pointService;
+    private readonly INotificationService _notificationService;
 
-    public EventService(AppDbContext db, IPointService pointService)
+    public EventService(AppDbContext db, IPointService pointService, INotificationService notificationService)
     {
         _db = db;
         _pointService = pointService;
+        _notificationService = notificationService;
     }
 
     public async Task<PagedResult<EventDto>> GetClubEventsAsync(Guid clubId, int page, int pageSize)
@@ -72,6 +74,19 @@ public class EventService : IEventService
         _db.Events.Add(ev);
         await _db.SaveChangesAsync();
 
+        // Thông báo cho tất cả thành viên CLB (trừ người tạo)
+        var memberIds = await _db.ClubMembers
+            .Where(m => m.ClubId == clubId && m.Status == MembershipStatus.Approved && m.UserId != createdBy)
+            .Select(m => m.UserId)
+            .ToListAsync();
+
+        if (memberIds.Count > 0)
+            await _notificationService.CreateManyAsync(
+                memberIds,
+                "Sự kiện mới",
+                $"CLB vừa tạo sự kiện mới: {ev.Name}.",
+                "EVENT_CREATED");
+
         var result = await GetEventByIdAsync(ev.Id);
         return ApiResult<EventDto>.Success(result!);
     }
@@ -108,6 +123,20 @@ public class EventService : IEventService
 
         ev.Status = EventStatus.Cancelled;
         await _db.SaveChangesAsync();
+
+        // Thông báo cho những người đã đăng ký sự kiện
+        var registrantIds = await _db.EventRegistrations
+            .Where(r => r.EventId == eventId && !r.IsCancelled)
+            .Select(r => r.UserId)
+            .ToListAsync();
+
+        if (registrantIds.Count > 0)
+            await _notificationService.CreateManyAsync(
+                registrantIds,
+                "Sự kiện đã bị hủy",
+                $"Sự kiện {ev.Name} mà bạn đã đăng ký đã bị hủy.",
+                "EVENT_CANCELLED");
+
         return ApiResult<bool>.Success(true);
     }
 

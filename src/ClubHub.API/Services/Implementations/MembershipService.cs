@@ -10,8 +10,13 @@ namespace ClubHub.API.Services.Interfaces;
 public class MembershipService : IMembershipService
 {
     private readonly AppDbContext _db;
+    private readonly INotificationService _notificationService;
 
-    public MembershipService(AppDbContext db) => _db = db;
+    public MembershipService(AppDbContext db, INotificationService notificationService)
+    {
+        _db = db;
+        _notificationService = notificationService;
+    }
 
     public async Task<ApiResult<bool>> RequestJoinAsync(Guid clubId, Guid userId, JoinClubRequest req)
     {
@@ -63,6 +68,27 @@ public class MembershipService : IMembershipService
             membership.RejectionReason = req.RejectionReason;
 
         await _db.SaveChangesAsync();
+
+        var clubName = await _db.Clubs
+            .Where(c => c.Id == membership.ClubId)
+            .Select(c => c.Name)
+            .FirstOrDefaultAsync() ?? "CLB";
+
+        if (req.IsApproved)
+            await _notificationService.CreateAsync(
+                membership.UserId,
+                "Đơn tham gia đã được duyệt",
+                $"Chúc mừng! Bạn đã trở thành thành viên của CLB {clubName}.",
+                "JOIN_APPROVED");
+        else
+            await _notificationService.CreateAsync(
+                membership.UserId,
+                "Đơn tham gia bị từ chối",
+                string.IsNullOrWhiteSpace(membership.RejectionReason)
+                    ? $"Đơn tham gia CLB {clubName} của bạn đã bị từ chối."
+                    : $"Đơn tham gia CLB {clubName} của bạn đã bị từ chối. Lý do: {membership.RejectionReason}",
+                "JOIN_REJECTED");
+
         return ApiResult<bool>.Success(true);
     }
 
