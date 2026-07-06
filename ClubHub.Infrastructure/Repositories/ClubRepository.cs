@@ -18,6 +18,9 @@ public class ClubRepository : GenericRepository<Club>, IClubRepository
     public IQueryable<Club> QueryActiveClubs()
         => _dbSet.Where(c => c.Status == ClubStatus.Active);
 
+    public IQueryable<Club> QueryAllClubs()
+        => _dbSet.Where(c => c.Status != ClubStatus.Deleted);
+
     public IQueryable<Club> QueryMyClubs(Guid userId)
         => _dbSet.Where(c => c.Members.Any(m =>
             m.UserId == userId && m.Status == MembershipStatus.Approved)

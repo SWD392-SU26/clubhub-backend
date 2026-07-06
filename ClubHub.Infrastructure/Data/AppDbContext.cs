@@ -35,6 +35,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Club>(e =>
         {
             e.HasKey(c => c.Id);
+            e.HasIndex(c => c.Name).IsUnique();
             e.Property(c => c.Category).HasConversion<string>();
             e.Property(c => c.Status).HasConversion<string>();
 
@@ -48,7 +49,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<ClubMember>(e =>
         {
             e.HasKey(cm => cm.Id);
-            e.HasIndex(cm => new { cm.UserId, cm.ClubId });
+            e.HasIndex(cm => new { cm.UserId, cm.ClubId }).IsUnique();
             e.Property(cm => cm.RoleInClub).HasConversion<string>();
             e.Property(cm => cm.Status).HasConversion<string>();
 

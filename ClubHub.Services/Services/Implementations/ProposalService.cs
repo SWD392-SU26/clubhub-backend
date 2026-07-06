@@ -13,11 +13,13 @@ public class ProposalService : IProposalService
 {
     private readonly IUnitOfWork _uow;
     private readonly IClubService _clubService;
+    private readonly INotificationService _notificationService;
 
-    public ProposalService(IUnitOfWork uow, IClubService clubService)
+    public ProposalService(IUnitOfWork uow, IClubService clubService, INotificationService notificationService)
     {
         _uow = uow;
         _clubService = clubService;
+        _notificationService = notificationService;
     }
 
     public async Task<ApiResult<ProposalDto>> SubmitAsync(SubmitProposalRequest req, Guid submittedBy)
@@ -47,6 +49,40 @@ public class ProposalService : IProposalService
         return ApiResult<ProposalDto>.Success(MapToDto(proposal));
     }
 
+    public async Task<ApiResult<ProposalDto>> ResubmitAsync(Guid proposalId, SubmitProposalRequest req, Guid submittedBy)
+    {
+        var proposal = await _uow.Proposals.GetByIdAsync(proposalId);
+        if (proposal == null) return ApiResult<ProposalDto>.Failure("Hồ sơ không tồn tại.");
+        if (proposal.Status != ProposalStatus.NeedsRevision)
+            return ApiResult<ProposalDto>.Failure("Chỉ có thể nộp lại hồ sơ khi được yêu cầu bổ sung.");
+        if (proposal.SubmittedBy != submittedBy)
+            return ApiResult<ProposalDto>.Failure("Bạn không phải người gửi hồ sơ này.");
+
+        // Update proposal fields
+        proposal.ClubName = req.ClubName;
+        proposal.Category = req.Category;
+        proposal.Description = req.Description;
+        proposal.Mission = req.Mission;
+        proposal.Reason = req.Reason;
+        proposal.ActivityPlan = req.ActivityPlan;
+        proposal.FounderInfo = req.FounderInfo;
+        proposal.FounderStudentCode = req.FounderStudentCode;
+        proposal.FounderIdCardUrl = req.FounderIdCardUrl;
+        proposal.ContactEmail = req.ContactEmail;
+        proposal.ContactPhone = req.ContactPhone;
+        proposal.Advisor = req.Advisor;
+        proposal.LogoUrl = req.LogoUrl;
+        proposal.ProposalFileUrl = req.ProposalFileUrl;
+        proposal.Notes = req.Notes;
+        proposal.Status = ProposalStatus.Pending;
+        proposal.RejectionReason = null;
+        proposal.ReviewedBy = null;
+        proposal.ReviewedAt = null;
+
+        await _uow.SaveChangesAsync();
+        return ApiResult<ProposalDto>.Success(MapToDto(proposal));
+    }
+
     public async Task<ApiResult<bool>> ReviewAsync(Guid proposalId, ReviewProposalRequest req, Guid reviewerId)
     {
         var proposal = await _uow.Proposals.GetByIdAsync(proposalId);
@@ -66,11 +102,24 @@ public class ProposalService : IProposalService
                 proposal.ClubName, proposal.Category,
                 proposal.Description, proposal.LogoUrl, null),
                 proposal.SubmittedBy);
+
+            await _notificationService.SendNotificationAsync(
+                proposal.SubmittedBy,
+                "Hồ sơ thành lập CLB được duyệt",
+                $"Chúc mừng! Hồ sơ thành lập CLB {proposal.ClubName} của bạn đã được duyệt. CLB đã được tạo tự động.",
+                "PROPOSAL_APPROVED");
         }
         else
         {
             proposal.Status = ProposalStatus.Rejected;
             proposal.RejectionReason = req.RejectionReason;
+
+            await _notificationService.SendNotificationAsync(
+                proposal.SubmittedBy,
+                "Hồ sơ thành lập CLB bị từ chối",
+                $"Hồ sơ thành lập CLB {proposal.ClubName} của bạn đã bị từ chối. " +
+                $"Lý do: {req.RejectionReason ?? "Không rõ"}",
+                "PROPOSAL_REJECTED");
         }
 
         await _uow.SaveChangesAsync();
@@ -88,6 +137,13 @@ public class ProposalService : IProposalService
         proposal.RejectionReason = req.RevisionNote;
         proposal.ReviewedBy = reviewerId;
         proposal.ReviewedAt = DateTime.UtcNow;
+
+        await _notificationService.SendNotificationAsync(
+            proposal.SubmittedBy,
+            "Hồ sơ thành lập CLB yêu cầu bổ sung",
+            $"Hồ sơ thành lập CLB {proposal.ClubName} của bạn cần được bổ sung. " +
+            $"Ghi chú: {req.RevisionNote}",
+            "PROPOSAL_NEEDS_REVISION");
 
         await _uow.SaveChangesAsync();
         return ApiResult<bool>.Success(true);

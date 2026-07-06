@@ -13,6 +13,10 @@ public interface IClubService
     Task<ApiResult<ClubDetailDto>> UpdateClubAsync(Guid clubId, UpdateClubRequest request, Guid requesterId);
     Task<ApiResult<bool>> HideClubAsync(Guid clubId);
     Task<ApiResult<bool>> LockClubAsync(Guid clubId);
+    Task<ApiResult<bool>> ArchiveClubAsync(Guid clubId);
+    Task<ApiResult<bool>> ReopenClubAsync(Guid clubId);
+    Task<ApiResult<bool>> DissolveClubAsync(Guid clubId);
     Task<ApiResult<bool>> DeleteClubAsync(Guid clubId, bool hardDelete = false);
     Task<PagedResult<ClubSummaryDto>> GetMyClubsAsync(Guid userId, int page, int pageSize);
+    Task<PagedResult<ClubSummaryDto>> GetAllByStatusAsync(ClubStatus? status, int page, int pageSize);
 }

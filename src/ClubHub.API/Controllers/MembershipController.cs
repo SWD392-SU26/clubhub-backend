@@ -27,6 +27,14 @@ public class MembershipController : ControllerBase
             : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
+    /// <summary>[Student] Rút đơn tham gia CLB (khi đơn còn pending)</summary>
+    [HttpDelete("cancel-request")]
+    public async Task<IActionResult> CancelJoinRequest(Guid clubId)
+    {
+        var result = await _membershipService.CancelJoinRequestAsync(clubId, GetUserId());
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
+    }
+
     /// <summary>[Student] Rời khỏi CLB</summary>
     [HttpDelete("leave")]
     public async Task<IActionResult> Leave(Guid clubId)

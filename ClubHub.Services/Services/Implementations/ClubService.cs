@@ -40,6 +40,28 @@ public class ClubService : IClubService
         return new PagedResult<ClubSummaryDto>(items, filter.Page, filter.PageSize, total);
     }
 
+    public async Task<PagedResult<ClubSummaryDto>> GetAllByStatusAsync(ClubStatus? status, int page, int pageSize)
+    {
+        var query = _uow.Clubs.QueryAllClubs();
+
+        if (status.HasValue)
+            query = query.Where(c => c.Status == status.Value);
+
+        var total = await query.CountAsync();
+        var items = await query
+            .OrderBy(c => c.Name)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(c => new ClubSummaryDto(
+                c.Id, c.Name, c.Category.ToString(), c.Description,
+                c.LogoUrl, c.CoverImageUrl, c.Status.ToString(),
+                c.Members.Count(m => m.Status == MembershipStatus.Approved),
+                c.CreatedAt))
+            .ToListAsync();
+
+        return new PagedResult<ClubSummaryDto>(items, page, pageSize, total);
+    }
+
     public async Task<ClubDetailDto?> GetByIdAsync(Guid clubId, Guid? currentUserId = null)
     {
         var club = await _uow.Clubs.GetClubWithMembersAsync(clubId);
@@ -110,6 +132,46 @@ public class ClubService : IClubService
 
     public async Task<ApiResult<bool>> LockClubAsync(Guid clubId)
         => await ChangeStatusAsync(clubId, ClubStatus.Locked);
+
+    public async Task<ApiResult<bool>> ArchiveClubAsync(Guid clubId)
+        => await ChangeStatusAsync(clubId, ClubStatus.Archived);
+
+    public async Task<ApiResult<bool>> ReopenClubAsync(Guid clubId)
+    {
+        var club = await _uow.Clubs.GetByIdAsync(clubId);
+        if (club == null) return ApiResult<bool>.Failure("CLB không tồn tại.");
+        if (club.Status != ClubStatus.Archived && club.Status != ClubStatus.Hidden)
+            return ApiResult<bool>.Failure("Chỉ có thể mở lại CLB đang ở trạng thái Archived hoặc Hidden.");
+
+        club.Status = ClubStatus.Active;
+        club.UpdatedAt = DateTime.UtcNow;
+        await _uow.SaveChangesAsync();
+        return ApiResult<bool>.Success(true);
+    }
+
+    public async Task<ApiResult<bool>> DissolveClubAsync(Guid clubId)
+    {
+        var club = await _uow.Clubs.GetByIdAsync(clubId);
+        if (club == null) return ApiResult<bool>.Failure("CLB không tồn tại.");
+        if (club.Status == ClubStatus.Dissolved)
+            return ApiResult<bool>.Failure("CLB đã giải tán.");
+
+        // Archive all members as Left when club is dissolved
+        var members = await _uow.ClubMembers.Query()
+            .Where(m => m.ClubId == clubId && m.Status == MembershipStatus.Approved)
+            .ToListAsync();
+
+        foreach (var m in members)
+        {
+            m.Status = MembershipStatus.Left;
+            m.LeftAt = DateTime.UtcNow;
+        }
+
+        club.Status = ClubStatus.Dissolved;
+        club.UpdatedAt = DateTime.UtcNow;
+        await _uow.SaveChangesAsync();
+        return ApiResult<bool>.Success(true);
+    }
 
     public async Task<ApiResult<bool>> DeleteClubAsync(Guid clubId, bool hardDelete = false)
     {

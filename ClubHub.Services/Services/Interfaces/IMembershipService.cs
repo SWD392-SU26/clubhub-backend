@@ -8,6 +8,7 @@ namespace ClubHub.API.Services.Interfaces;
 public interface IMembershipService
 {
     Task<ApiResult<bool>> RequestJoinAsync(Guid clubId, Guid userId, JoinClubRequest request);
+    Task<ApiResult<bool>> CancelJoinRequestAsync(Guid clubId, Guid userId);
     Task<ApiResult<bool>> ReviewRequestAsync(Guid membershipId, Guid reviewerId, ReviewMembershipRequest request);
     Task<ApiResult<bool>> LeaveClubAsync(Guid clubId, Guid userId);
     Task<ApiResult<bool>> RemoveMemberAsync(Guid clubId, Guid memberId, Guid requesterId);

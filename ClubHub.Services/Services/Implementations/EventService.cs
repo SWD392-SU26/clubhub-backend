@@ -11,11 +11,13 @@ public class EventService : IEventService
 {
     private readonly IUnitOfWork _uow;
     private readonly IPointService _pointService;
+    private readonly INotificationService _notificationService;
 
-    public EventService(IUnitOfWork uow, IPointService pointService)
+    public EventService(IUnitOfWork uow, IPointService pointService, INotificationService notificationService)
     {
         _uow = uow;
         _pointService = pointService;
+        _notificationService = notificationService;
     }
 
     public async Task<PagedResult<EventDto>> GetClubEventsAsync(Guid clubId, int page, int pageSize)
@@ -66,6 +68,17 @@ public class EventService : IEventService
         _uow.Events.Add(ev);
         await _uow.SaveChangesAsync();
 
+        // Notify all club members about new event
+        var members = await _uow.ClubMembers.QueryApprovedMembers(clubId)
+            .Select(m => m.UserId)
+            .ToListAsync();
+
+        await _notificationService.SendBulkNotificationAsync(
+            members,
+            "Sự kiện mới",
+            $"CLB có sự kiện mới: {ev.Name}. Hãy đăng ký tham gia!",
+            "NEW_EVENT");
+
         var result = await GetEventByIdAsync(ev.Id);
         return ApiResult<EventDto>.Success(result!);
     }
@@ -102,6 +115,19 @@ public class EventService : IEventService
 
         ev.Status = EventStatus.Cancelled;
         await _uow.SaveChangesAsync();
+
+        // Notify all registered members about cancellation
+        var registrants = await _uow.EventRegistrations.QueryEventRegistrations(eventId)
+            .Where(r => !r.IsCancelled)
+            .Select(r => r.UserId)
+            .ToListAsync();
+
+        await _notificationService.SendBulkNotificationAsync(
+            registrants,
+            "Sự kiện bị hủy",
+            $"Sự kiện {ev.Name} đã bị hủy. Xin lỗi vì sự bất tiện này.",
+            "EVENT_CANCELLED");
+
         return ApiResult<bool>.Success(true);
     }
 

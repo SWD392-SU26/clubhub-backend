@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using ClubHub.API.DTOs.Club;
 using ClubHub.API.DTOs.Common;
 using ClubHub.API.Enums;
@@ -18,11 +19,14 @@ public class UniversityAdminController : ControllerBase
 
     public UniversityAdminController(IClubService clubService) => _clubService = clubService;
 
-    /// <summary>Xem toàn bộ CLB (mọi trạng thái)</summary>
+    /// <summary>Xem toàn bộ CLB (lọc theo trạng thái)</summary>
     [HttpGet("clubs")]
-    public async Task<IActionResult> GetAllClubs([FromQuery] ClubFilterRequest filter)
+    public async Task<IActionResult> GetAllClubs(
+        [FromQuery] ClubStatus? status,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10)
     {
-        var result = await _clubService.GetAllAsync(filter);
+        var result = await _clubService.GetAllByStatusAsync(status, page, pageSize);
         return Ok(ApiResponse.Ok(result));
     }
 
@@ -50,6 +54,30 @@ public class UniversityAdminController : ControllerBase
     public async Task<IActionResult> LockClub(Guid clubId)
     {
         var result = await _clubService.LockClubAsync(clubId);
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
+    }
+
+    /// <summary>Lưu trữ CLB</summary>
+    [HttpPut("clubs/{clubId:guid}/archive")]
+    public async Task<IActionResult> ArchiveClub(Guid clubId)
+    {
+        var result = await _clubService.ArchiveClubAsync(clubId);
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
+    }
+
+    /// <summary>Mở lại CLB (từ trạng thái Archived hoặc Hidden)</summary>
+    [HttpPut("clubs/{clubId:guid}/reopen")]
+    public async Task<IActionResult> ReopenClub(Guid clubId)
+    {
+        var result = await _clubService.ReopenClubAsync(clubId);
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
+    }
+
+    /// <summary>Giải tán CLB</summary>
+    [HttpPut("clubs/{clubId:guid}/dissolve")]
+    public async Task<IActionResult> DissolveClub(Guid clubId)
+    {
+        var result = await _clubService.DissolveClubAsync(clubId);
         return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
     }
 

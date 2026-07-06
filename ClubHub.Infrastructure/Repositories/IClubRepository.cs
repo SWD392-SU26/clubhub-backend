@@ -6,5 +6,6 @@ public interface IClubRepository : IGenericRepository<Club>
 {
     Task<Club?> GetClubWithMembersAsync(Guid clubId);
     IQueryable<Club> QueryActiveClubs();
+    IQueryable<Club> QueryAllClubs();
     IQueryable<Club> QueryMyClubs(Guid userId);
 }

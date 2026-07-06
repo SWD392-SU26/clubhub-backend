@@ -19,7 +19,9 @@ public enum ClubStatus
     Active,
     Hidden,
     Locked,
-    Deleted
+    Archived,
+    Deleted,
+    Dissolved
 }
 
 public enum ClubCategory
@@ -39,6 +41,7 @@ public enum MembershipStatus
     Pending,
     Approved,
     Rejected,
+    Cancelled,
     Left
 }
 

@@ -28,6 +28,16 @@ public class ProposalController : ControllerBase
             : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
+    /// <summary>[Student] Nộp lại hồ sơ sau khi được yêu cầu bổ sung</summary>
+    [HttpPut("{id:guid}/resubmit")]
+    public async Task<IActionResult> Resubmit(Guid id, [FromBody] SubmitProposalRequest request)
+    {
+        var result = await _proposalService.ResubmitAsync(id, request, GetUserId());
+        return result.IsSuccess
+            ? Ok(ApiResponse.Ok(result.Data))
+            : BadRequest(ApiResponse.Fail(result.Error!));
+    }
+
     /// <summary>[Student] Xem hồ sơ của mình</summary>
     [HttpGet("my")]
     public async Task<IActionResult> GetMine()

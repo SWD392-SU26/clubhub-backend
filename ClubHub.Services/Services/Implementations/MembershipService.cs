@@ -10,8 +10,13 @@ namespace ClubHub.API.Services.Interfaces;
 public class MembershipService : IMembershipService
 {
     private readonly IUnitOfWork _uow;
+    private readonly INotificationService _notificationService;
 
-    public MembershipService(IUnitOfWork uow) => _uow = uow;
+    public MembershipService(IUnitOfWork uow, INotificationService notificationService)
+    {
+        _uow = uow;
+        _notificationService = notificationService;
+    }
 
     public async Task<ApiResult<bool>> RequestJoinAsync(Guid clubId, Guid userId, JoinClubRequest req)
     {
@@ -42,6 +47,18 @@ public class MembershipService : IMembershipService
         return ApiResult<bool>.Success(true);
     }
 
+    public async Task<ApiResult<bool>> CancelJoinRequestAsync(Guid clubId, Guid userId)
+    {
+        var membership = await _uow.ClubMembers.GetByUserAndClubAsync(clubId, userId);
+        if (membership == null || membership.Status != MembershipStatus.Pending)
+            return ApiResult<bool>.Failure("Không tìm thấy đơn tham gia đang chờ xử lý.");
+
+        membership.Status = MembershipStatus.Cancelled;
+        membership.ReviewedAt = DateTime.UtcNow;
+        await _uow.SaveChangesAsync();
+        return ApiResult<bool>.Success(true);
+    }
+
     public async Task<ApiResult<bool>> ReviewRequestAsync(Guid membershipId, Guid reviewerId, ReviewMembershipRequest req)
     {
         var membership = await _uow.ClubMembers.GetByIdAsync(membershipId);
@@ -56,10 +73,28 @@ public class MembershipService : IMembershipService
         membership.ReviewedBy = reviewerId;
         membership.ReviewedAt = DateTime.UtcNow;
 
+        var club = await _uow.Clubs.GetByIdAsync(membership.ClubId);
+        var clubName = club?.Name ?? "CLB";
+
         if (req.IsApproved)
+        {
             membership.JoinedAt = DateTime.UtcNow;
+            await _notificationService.SendNotificationAsync(
+                membership.UserId,
+                "Đơn tham gia CLB được duyệt",
+                $"Chúc mừng! Bạn đã được duyệt vào CLB {clubName}.",
+                "JOIN_APPROVED");
+        }
         else
+        {
             membership.RejectionReason = req.RejectionReason;
+            await _notificationService.SendNotificationAsync(
+                membership.UserId,
+                "Đơn tham gia CLB bị từ chối",
+                $"Đơn tham gia CLB {clubName} của bạn đã bị từ chối. " +
+                $"Lý do: {req.RejectionReason ?? "Không rõ"}",
+                "JOIN_REJECTED");
+        }
 
         await _uow.SaveChangesAsync();
         return ApiResult<bool>.Success(true);
@@ -91,6 +126,14 @@ public class MembershipService : IMembershipService
 
         membership.Status = MembershipStatus.Left;
         membership.LeftAt = DateTime.UtcNow;
+
+        var club = await _uow.Clubs.GetByIdAsync(clubId);
+        await _notificationService.SendNotificationAsync(
+            memberId,
+            "Bị xóa khỏi CLB",
+            $"Bạn đã bị xóa khỏi CLB {club?.Name ?? ""}.",
+            "MEMBER_REMOVED");
+
         await _uow.SaveChangesAsync();
         return ApiResult<bool>.Success(true);
     }
@@ -100,10 +143,41 @@ public class MembershipService : IMembershipService
         if (!await IsClubAdminAsync(clubId, requesterId))
             return ApiResult<bool>.Failure("Bạn không có quyền gán vai trò.");
 
+        // Only the current President can assign a new President
+        if (req.NewRole == ClubRole.President && !await IsPresidentAsync(clubId, requesterId))
+            return ApiResult<bool>.Failure("Chỉ Chủ nhiệm mới có thể bổ nhiệm Chủ nhiệm mới.");
+
         var membership = await _uow.ClubMembers.GetByUserAndClubAsync(clubId, req.UserId);
         if (membership == null || membership.Status != MembershipStatus.Approved) return ApiResult<bool>.Failure("Thành viên không tồn tại.");
 
+        var club = await _uow.Clubs.GetByIdAsync(clubId);
+
+        // If assigning to President, demote the current President first
+        if (req.NewRole == ClubRole.President)
+        {
+            var currentPresident = await _uow.ClubMembers.FirstOrDefaultAsync(m =>
+                m.ClubId == clubId && m.RoleInClub == ClubRole.President && m.Status == MembershipStatus.Approved);
+
+            if (currentPresident != null && currentPresident.UserId != req.UserId)
+            {
+                currentPresident.RoleInClub = ClubRole.Member;
+
+                await _notificationService.SendNotificationAsync(
+                    currentPresident.UserId,
+                    "Vai trò trong CLB thay đổi",
+                    $"Bạn không còn là Chủ nhiệm CLB {club?.Name ?? ""}. Vai trò của bạn đã được cập nhật.",
+                    "ROLE_CHANGED");
+            }
+        }
+
         membership.RoleInClub = req.NewRole;
+
+        await _notificationService.SendNotificationAsync(
+            req.UserId,
+            "Vai trò trong CLB thay đổi",
+            $"Vai trò của bạn trong CLB {club?.Name ?? ""} đã được cập nhật thành: {DisplayRole(req.NewRole)}.",
+            "ROLE_CHANGED");
+
         await _uow.SaveChangesAsync();
         return ApiResult<bool>.Success(true);
     }
@@ -120,6 +194,14 @@ public class MembershipService : IMembershipService
 
         currentAdmin.RoleInClub = ClubRole.Member;
         newAdmin.RoleInClub = ClubRole.President;
+
+        var club = await _uow.Clubs.GetByIdAsync(clubId);
+        await _notificationService.SendNotificationAsync(
+            req.NewAdminUserId,
+            "Chuyển quyền chủ nhiệm",
+            $"Bạn đã được bổ nhiệm làm Chủ nhiệm CLB {club?.Name ?? ""}.",
+            "TRANSFER_ADMIN");
+
         await _uow.SaveChangesAsync();
         return ApiResult<bool>.Success(true);
     }
@@ -166,9 +248,24 @@ public class MembershipService : IMembershipService
             .ToListAsync();
     }
 
+    private static string DisplayRole(ClubRole role) => role switch
+    {
+        ClubRole.President => "Chủ nhiệm",
+        ClubRole.VicePresident => "Phó chủ nhiệm",
+        ClubRole.ClubAdmin => "Admin CLB",
+        ClubRole.Member => "Thành viên",
+        _ => role.ToString()
+    };
+
     private async Task<bool> IsClubAdminAsync(Guid clubId, Guid userId)
         => await _uow.ClubMembers.AnyAsync(m =>
             m.ClubId == clubId && m.UserId == userId &&
             m.Status == MembershipStatus.Approved &&
             (m.RoleInClub == ClubRole.ClubAdmin || m.RoleInClub == ClubRole.President));
+
+    private async Task<bool> IsPresidentAsync(Guid clubId, Guid userId)
+        => await _uow.ClubMembers.AnyAsync(m =>
+            m.ClubId == clubId && m.UserId == userId &&
+            m.Status == MembershipStatus.Approved &&
+            m.RoleInClub == ClubRole.President);
 }

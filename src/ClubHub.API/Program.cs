@@ -67,6 +67,7 @@ builder.Services.AddScoped<IEventService, EventService>();
 builder.Services.AddScoped<IFeedbackService, FeedbackService>();
 builder.Services.AddScoped<IPointService, PointService>();
 builder.Services.AddScoped<IProposalService, ProposalService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
 
 // ── Controllers ───────────────────────────────────────────────────────────────
 builder.Services.AddControllers()
