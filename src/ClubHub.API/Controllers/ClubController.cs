@@ -34,9 +34,7 @@ public class ClubController : ControllerBase
     {
         var userId = TryGetUserId();
         var result = await _clubService.GetByIdAsync(clubId, userId);
-        return result != null
-            ? Ok(ApiResponse.Ok(result))
-            : NotFound(ApiResponse.Fail("CLB không tồn tại."));
+        return result != null ? Ok(ApiResponse.Ok(result)) : NotFound(ApiResponse.Fail("CLB không tồn tại."));
     }
 
     /// <summary>Xem các CLB đang tham gia</summary>
@@ -55,15 +53,12 @@ public class ClubController : ControllerBase
     public async Task<IActionResult> UpdateClub(Guid clubId, [FromBody] UpdateClubRequest request)
     {
         var result = await _clubService.UpdateClubAsync(clubId, request, GetUserId());
-        return result.IsSuccess
-            ? Ok(ApiResponse.Ok(result.Data!))
-            : BadRequest(ApiResponse.Fail(result.Error!));
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data!)) : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private Guid GetUserId() =>
-        Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+    private Guid GetUserId() => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
     private Guid? TryGetUserId()
     {

@@ -16,8 +16,7 @@ public class ProposalController : ControllerBase
 {
     private readonly IProposalService _proposalService;
 
-    public ProposalController(IProposalService proposalService)
-        => _proposalService = proposalService;
+    public ProposalController(IProposalService proposalService) => _proposalService = proposalService;
 
     /// <summary>[Student] Nộp hồ sơ thành lập CLB</summary>
     [HttpPost]
@@ -26,6 +25,16 @@ public class ProposalController : ControllerBase
         var result = await _proposalService.SubmitAsync(request, GetUserId());
         return result.IsSuccess
             ? CreatedAtAction(nameof(GetById), new { id = result.Data!.Id }, ApiResponse.Ok(result.Data))
+            : BadRequest(ApiResponse.Fail(result.Error!));
+    }
+
+    /// <summary>[Student] Nộp lại hồ sơ sau khi được yêu cầu bổ sung</summary>
+    [HttpPut("{id:guid}/resubmit")]
+    public async Task<IActionResult> Resubmit(Guid id, [FromBody] SubmitProposalRequest request)
+    {
+        var result = await _proposalService.ResubmitAsync(id, request, GetUserId());
+        return result.IsSuccess
+            ? Ok(ApiResponse.Ok(result.Data))
             : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
@@ -42,9 +51,7 @@ public class ProposalController : ControllerBase
     public async Task<IActionResult> GetById(Guid id)
     {
         var result = await _proposalService.GetByIdAsync(id);
-        return result != null
-            ? Ok(ApiResponse.Ok(result))
-            : NotFound(ApiResponse.Fail("Hồ sơ không tồn tại."));
+        return result != null ? Ok(ApiResponse.Ok(result)) : NotFound(ApiResponse.Fail("Hồ sơ không tồn tại."));
     }
 
     /// <summary>[University Admin] Xem tất cả hồ sơ</summary>
@@ -65,9 +72,7 @@ public class ProposalController : ControllerBase
     public async Task<IActionResult> Review(Guid id, [FromBody] ReviewProposalRequest request)
     {
         var result = await _proposalService.ReviewAsync(id, request, GetUserId());
-        return result.IsSuccess
-            ? Ok(ApiResponse.Ok(result.Data))
-            : BadRequest(ApiResponse.Fail(result.Error!));
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
     /// <summary>[University Admin] Yêu cầu bổ sung hồ sơ</summary>
@@ -76,9 +81,7 @@ public class ProposalController : ControllerBase
     public async Task<IActionResult> RequestRevision(Guid id, [FromBody] RequestRevisionRequest request)
     {
         var result = await _proposalService.RequestRevisionAsync(id, request, GetUserId());
-        return result.IsSuccess
-            ? Ok(ApiResponse.Ok(result.Data))
-            : BadRequest(ApiResponse.Fail(result.Error!));
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
     private Guid GetUserId() =>

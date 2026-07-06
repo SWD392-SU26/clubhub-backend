@@ -1,5 +1,8 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="ClubHub.Domain/ClubHub.Domain.csproj" Id="f04d9ebb-77b7-408c-b44c-d614794a0fbc" />
+    <Project Path="ClubHub.Infrastructure/ClubHub.Infrastructure.csproj" Id="713348e7-a569-4a53-a689-9ba1d402af87" />
+    <Project Path="ClubHub.Services/ClubHub.Application.csproj" Id="1fde02a7-4524-4dde-8011-2d13bade8fbf" />
     <Project Path="src/ClubHub.API/ClubHub.API.csproj" />
   </Folder>
 </Solution>

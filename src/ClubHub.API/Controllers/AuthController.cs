@@ -7,8 +7,9 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ClubHub.API.Controllers;
 
+[Tags("Authentication")]
 [ApiController]
-[Route("api/auth")]
+[Route("/")]
 [Produces("application/json")]
 public class AuthController : ControllerBase
 {
@@ -23,9 +24,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
     {
         var result = await _authService.RegisterAsync(request);
-        return result.IsSuccess
-            ? Ok(ApiResponse.Ok(result.Data!))
-            : BadRequest(ApiResponse.Fail(result.Error!));
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data!)) : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
     /// <summary>Đăng nhập</summary>
@@ -35,9 +34,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         var result = await _authService.LoginAsync(request);
-        return result.IsSuccess
-            ? Ok(ApiResponse.Ok(result.Data!))
-            : Unauthorized(ApiResponse.Fail(result.Error!));
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data!)) : Unauthorized(ApiResponse.Fail(result.Error!));
     }
 
     /// <summary>Làm mới access token</summary>
@@ -45,19 +42,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request)
     {
         var result = await _authService.RefreshTokenAsync(request.RefreshToken);
-        return result.IsSuccess
-            ? Ok(ApiResponse.Ok(result.Data!))
-            : Unauthorized(ApiResponse.Fail(result.Error!));
-    }
-
-    /// <summary>Đăng xuất</summary>
-    [HttpPost("logout")]
-    [Authorize]
-    public async Task<IActionResult> Logout()
-    {
-        var userId = GetUserId();
-        var result = await _authService.LogoutAsync(userId);
-        return Ok(ApiResponse.Ok(result.Data));
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data!)) : Unauthorized(ApiResponse.Fail(result.Error!));
     }
 
     /// <summary>Đổi mật khẩu</summary>
@@ -66,9 +51,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
     {
         var result = await _authService.ChangePasswordAsync(GetUserId(), request);
-        return result.IsSuccess
-            ? Ok(ApiResponse.Ok(result.Data))
-            : BadRequest(ApiResponse.Fail(result.Error!));
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
     /// <summary>Quên mật khẩu - gửi email reset</summary>
@@ -84,9 +67,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
     {
         var result = await _authService.ResetPasswordAsync(request);
-        return result.IsSuccess
-            ? Ok(ApiResponse.Ok(result.Data))
-            : BadRequest(ApiResponse.Fail(result.Error!));
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
     /// <summary>Xem thông tin cá nhân</summary>
@@ -95,9 +76,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> GetProfile()
     {
         var result = await _authService.GetProfileAsync(GetUserId());
-        return result.IsSuccess
-            ? Ok(ApiResponse.Ok(result.Data!))
-            : NotFound(ApiResponse.Fail(result.Error!));
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data!)) : NotFound(ApiResponse.Fail(result.Error!));
     }
 
     /// <summary>Cập nhật thông tin cá nhân</summary>
@@ -106,9 +85,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
     {
         var result = await _authService.UpdateProfileAsync(GetUserId(), request);
-        return result.IsSuccess
-            ? Ok(ApiResponse.Ok(result.Data!))
-            : BadRequest(ApiResponse.Fail(result.Error!));
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data!)) : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
     private Guid GetUserId() =>

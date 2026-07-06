@@ -15,8 +15,7 @@ public class MembershipController : ControllerBase
 {
     private readonly IMembershipService _membershipService;
 
-    public MembershipController(IMembershipService membershipService)
-        => _membershipService = membershipService;
+    public MembershipController(IMembershipService membershipService) => _membershipService = membershipService;
 
     /// <summary>[Student] Gửi đơn tham gia CLB</summary>
     [HttpPost("join")]
@@ -28,14 +27,20 @@ public class MembershipController : ControllerBase
             : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
+    /// <summary>[Student] Rút đơn tham gia CLB (khi đơn còn pending)</summary>
+    [HttpDelete("cancel-request")]
+    public async Task<IActionResult> CancelJoinRequest(Guid clubId)
+    {
+        var result = await _membershipService.CancelJoinRequestAsync(clubId, GetUserId());
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
+    }
+
     /// <summary>[Student] Rời khỏi CLB</summary>
     [HttpDelete("leave")]
     public async Task<IActionResult> Leave(Guid clubId)
     {
         var result = await _membershipService.LeaveClubAsync(clubId, GetUserId());
-        return result.IsSuccess
-            ? Ok(ApiResponse.Ok(result.Data))
-            : BadRequest(ApiResponse.Fail(result.Error!));
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
     /// <summary>[Club Admin] Lấy danh sách thành viên</summary>
@@ -43,6 +48,9 @@ public class MembershipController : ControllerBase
     public async Task<IActionResult> GetMembers(Guid clubId,
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
+        if (!await _membershipService.IsClubAdminAsync(clubId, GetUserId()))
+            return Forbid();
+
         var result = await _membershipService.GetMembersAsync(clubId, page, pageSize);
         return Ok(ApiResponse.Ok(result));
     }
@@ -52,6 +60,9 @@ public class MembershipController : ControllerBase
     public async Task<IActionResult> GetPendingRequests(Guid clubId,
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
+        if (!await _membershipService.IsClubAdminAsync(clubId, GetUserId()))
+            return Forbid();
+
         var result = await _membershipService.GetPendingRequestsAsync(clubId, page, pageSize);
         return Ok(ApiResponse.Ok(result));
     }
@@ -62,9 +73,7 @@ public class MembershipController : ControllerBase
         [FromBody] ReviewMembershipRequest request)
     {
         var result = await _membershipService.ReviewRequestAsync(membershipId, GetUserId(), request);
-        return result.IsSuccess
-            ? Ok(ApiResponse.Ok(result.Data))
-            : BadRequest(ApiResponse.Fail(result.Error!));
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
     /// <summary>[Club Admin] Gán vai trò cho thành viên</summary>
@@ -72,9 +81,7 @@ public class MembershipController : ControllerBase
     public async Task<IActionResult> AssignRole(Guid clubId, [FromBody] AssignRoleRequest request)
     {
         var result = await _membershipService.AssignRoleAsync(clubId, request, GetUserId());
-        return result.IsSuccess
-            ? Ok(ApiResponse.Ok(result.Data))
-            : BadRequest(ApiResponse.Fail(result.Error!));
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
     /// <summary>[Club Admin] Xóa thành viên khỏi CLB</summary>
@@ -82,9 +89,7 @@ public class MembershipController : ControllerBase
     public async Task<IActionResult> RemoveMember(Guid clubId, Guid memberId)
     {
         var result = await _membershipService.RemoveMemberAsync(clubId, memberId, GetUserId());
-        return result.IsSuccess
-            ? Ok(ApiResponse.Ok(result.Data))
-            : BadRequest(ApiResponse.Fail(result.Error!));
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
     /// <summary>[President] Chuyển quyền chủ nhiệm</summary>
@@ -92,9 +97,31 @@ public class MembershipController : ControllerBase
     public async Task<IActionResult> TransferAdmin(Guid clubId, [FromBody] TransferAdminRequest request)
     {
         var result = await _membershipService.TransferAdminAsync(clubId, request, GetUserId());
-        return result.IsSuccess
-            ? Ok(ApiResponse.Ok(result.Data))
-            : BadRequest(ApiResponse.Fail(result.Error!));
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
+    }
+
+    /// <summary>[President] Đề cử người kế nhiệm (khi muốn rời CLB)</summary>
+    [HttpPut("nominate-successor")]
+    public async Task<IActionResult> NominateSuccessor(Guid clubId, [FromBody] TransferAdminRequest request)
+    {
+        var result = await _membershipService.NominateSuccessorAsync(clubId, request.NewAdminUserId, GetUserId());
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
+    }
+
+    /// <summary>[Member] Chấp nhận kế nhiệm chủ nhiệm</summary>
+    [HttpPut("accept-succession")]
+    public async Task<IActionResult> AcceptSuccession(Guid clubId)
+    {
+        var result = await _membershipService.AcceptSuccessionAsync(clubId, GetUserId());
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
+    }
+
+    /// <summary>[Member] Từ chối kế nhiệm chủ nhiệm</summary>
+    [HttpPut("reject-succession")]
+    public async Task<IActionResult> RejectSuccession(Guid clubId)
+    {
+        var result = await _membershipService.RejectSuccessionAsync(clubId, GetUserId());
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
     private Guid GetUserId() =>

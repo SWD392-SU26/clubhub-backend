@@ -1,0 +1,251 @@
+using ClubHub.API.DTOs.Common;
+using ClubHub.API.DTOs.Event;
+using ClubHub.API.Entities;
+using ClubHub.API.Enums;
+using ClubHub.API.Repositories;
+using Microsoft.EntityFrameworkCore;
+
+namespace ClubHub.API.Services.Interfaces;
+
+public class EventService : IEventService
+{
+    private readonly IUnitOfWork _uow;
+    private readonly IPointService _pointService;
+    private readonly INotificationService _notificationService;
+    private readonly IAuditService _auditService;
+
+    public EventService(IUnitOfWork uow, IPointService pointService,
+        INotificationService notificationService, IAuditService auditService)
+    {
+        _uow = uow;
+        _pointService = pointService;
+        _notificationService = notificationService;
+        _auditService = auditService;
+    }
+
+    public async Task<PagedResult<EventDto>> GetClubEventsAsync(Guid clubId, int page, int pageSize)
+    {
+        var query = _uow.Events.QueryClubEvents(clubId);
+
+        var total = await query.CountAsync();
+        var items = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(e => MapToDto(e))
+            .ToListAsync();
+
+        return new PagedResult<EventDto>(items, page, pageSize, total);
+    }
+
+    public async Task<EventDto?> GetEventByIdAsync(Guid eventId)
+    {
+        var ev = await _uow.Events.GetEventWithClubAsync(eventId);
+
+        return ev == null ? null : MapToDto(ev);
+    }
+
+    public async Task<ApiResult<EventDto>> CreateEventAsync(Guid clubId, CreateEventRequest req, Guid createdBy)
+    {
+        if (!await IsMemberAsync(clubId, createdBy))
+            return ApiResult<EventDto>.Failure("Bạn không phải thành viên CLB.");
+
+        if (!await IsClubAdminAsync(clubId, createdBy))
+            return ApiResult<EventDto>.Failure("Chỉ Club Admin/President mới được tạo sự kiện.");
+
+        if (req.StartTime >= req.EndTime)
+            return ApiResult<EventDto>.Failure("Thời gian kết thúc phải sau thời gian bắt đầu.");
+
+        var ev = new Event
+        {
+            ClubId = clubId,
+            Name = req.Name,
+            Description = req.Description,
+            Location = req.Location,
+            StartTime = req.StartTime,
+            EndTime = req.EndTime,
+            Capacity = req.Capacity,
+            CreatedBy = createdBy,
+            Status = EventStatus.Published
+        };
+
+        _uow.Events.Add(ev);
+        await _uow.SaveChangesAsync();
+
+        // Notify all club members about new event
+        var members = await _uow.ClubMembers.QueryApprovedMembers(clubId)
+            .Select(m => m.UserId)
+            .ToListAsync();
+
+        await _notificationService.SendBulkNotificationAsync(
+            members,
+            "Sự kiện mới",
+            $"CLB có sự kiện mới: {ev.Name}. Hãy đăng ký tham gia!",
+            "NEW_EVENT");
+
+        var result = await GetEventByIdAsync(ev.Id);
+
+        await _auditService.LogAsync("Event", ev.Id, "Create",
+            createdBy, null, clubId, null, $"Tạo sự kiện: {ev.Name}");
+
+        return ApiResult<EventDto>.Success(result!);
+    }
+
+    public async Task<ApiResult<EventDto>> UpdateEventAsync(Guid eventId, UpdateEventRequest req, Guid requesterId)
+    {
+        var ev = await _uow.Events.GetByIdAsync(eventId);
+        if (ev == null) return ApiResult<EventDto>.Failure("Sự kiện không tồn tại.");
+
+        if (!await IsClubAdminAsync(ev.ClubId, requesterId))
+            return ApiResult<EventDto>.Failure("Bạn không có quyền chỉnh sửa sự kiện này.");
+
+        if (req.Name != null) ev.Name = req.Name;
+        if (req.Description != null) ev.Description = req.Description;
+        if (req.Location != null) ev.Location = req.Location;
+        if (req.StartTime.HasValue) ev.StartTime = req.StartTime.Value;
+        if (req.EndTime.HasValue) ev.EndTime = req.EndTime.Value;
+        if (req.Capacity.HasValue) ev.Capacity = req.Capacity;
+        if (req.Status.HasValue) ev.Status = req.Status.Value;
+        ev.UpdatedAt = DateTime.UtcNow;
+
+        await _uow.SaveChangesAsync();
+
+        await _auditService.LogAsync("Event", eventId, "Update",
+            requesterId, null, ev.ClubId, null, $"Cập nhật sự kiện: {ev.Name}");
+
+        var result = await GetEventByIdAsync(eventId);
+        return ApiResult<EventDto>.Success(result!);
+    }
+
+    public async Task<ApiResult<bool>> DeleteEventAsync(Guid eventId, Guid requesterId)
+    {
+        var ev = await _uow.Events.GetByIdAsync(eventId);
+        if (ev == null) return ApiResult<bool>.Failure("Sự kiện không tồn tại.");
+
+        if (!await IsClubAdminAsync(ev.ClubId, requesterId))
+            return ApiResult<bool>.Failure("Bạn không có quyền xóa sự kiện này.");
+
+        ev.Status = EventStatus.Cancelled;
+        await _uow.SaveChangesAsync();
+
+        // Notify all registered members about cancellation
+        var registrants = await _uow.EventRegistrations.QueryEventRegistrations(eventId)
+            .Where(r => !r.IsCancelled)
+            .Select(r => r.UserId)
+            .ToListAsync();
+
+        await _notificationService.SendBulkNotificationAsync(
+            registrants,
+            "Sự kiện bị hủy",
+            $"Sự kiện {ev.Name} đã bị hủy. Xin lỗi vì sự bất tiện này.",
+            "EVENT_CANCELLED");
+
+        await _auditService.LogAsync("Event", eventId, "CancelEvent",
+            requesterId, null, ev.ClubId, null, $"Hủy sự kiện: {ev.Name}");
+
+        return ApiResult<bool>.Success(true);
+    }
+
+    public async Task<ApiResult<bool>> RegisterForEventAsync(Guid eventId, Guid userId)
+    {
+        var ev = await _uow.Events.GetEventWithRegistrationsAsync(eventId);
+        if (ev == null) return ApiResult<bool>.Failure("Sự kiện không tồn tại.");
+        if (ev.Status != EventStatus.Published) return ApiResult<bool>.Failure("Sự kiện không còn nhận đăng ký.");
+
+        if (ev.Capacity.HasValue && ev.Registrations.Count(r => !r.IsCancelled) >= ev.Capacity.Value)
+            return ApiResult<bool>.Failure("Sự kiện đã đủ số lượng tham gia.");
+
+        if (ev.Registrations.Any(r => r.UserId == userId && !r.IsCancelled))
+            return ApiResult<bool>.Failure("Bạn đã đăng ký sự kiện này rồi.");
+
+        var reg = new EventRegistration { EventId = eventId, UserId = userId };
+        _uow.EventRegistrations.Add(reg);
+        await _uow.SaveChangesAsync();
+
+        await _auditService.LogAsync("EventRegistration", reg.Id, "Register",
+            userId, null, ev.ClubId, null, $"Đăng ký sự kiện: {ev.Name}");
+
+        return ApiResult<bool>.Success(true);
+    }
+
+    public async Task<ApiResult<bool>> CancelRegistrationAsync(Guid eventId, Guid userId)
+    {
+        var reg = await _uow.EventRegistrations.GetByEventAndUserAsync(eventId, userId);
+
+        if (reg == null) return ApiResult<bool>.Failure("Bạn chưa đăng ký sự kiện này.");
+
+        reg.IsCancelled = true;
+        reg.CancelledAt = DateTime.UtcNow;
+        await _uow.SaveChangesAsync();
+
+        var ev = await _uow.Events.GetByIdAsync(eventId);
+        await _auditService.LogAsync("EventRegistration", reg.Id, "CancelRegistration",
+            userId, null, ev?.ClubId, null, $"Hủy đăng ký sự kiện: {ev?.Name}");
+
+        return ApiResult<bool>.Success(true);
+    }
+
+    public async Task<ApiResult<bool>> CheckInAsync(Guid eventId, Guid userId, Guid requesterId)
+    {
+        var ev = await _uow.Events.GetByIdAsync(eventId);
+        if (ev == null) return ApiResult<bool>.Failure("Sự kiện không tồn tại.");
+
+        if (!await IsClubAdminAsync(ev.ClubId, requesterId))
+            return ApiResult<bool>.Failure("Bạn không có quyền check-in thành viên.");
+
+        var reg = await _uow.EventRegistrations.GetByEventAndUserAsync(eventId, userId);
+
+        if (reg == null) return ApiResult<bool>.Failure("Người dùng chưa đăng ký sự kiện.");
+        if (reg.IsCheckedIn) return ApiResult<bool>.Failure("Người dùng đã check-in rồi.");
+
+        reg.IsCheckedIn = true;
+        reg.CheckInTime = DateTime.UtcNow;
+        await _uow.SaveChangesAsync();
+
+        // Award points
+        await _pointService.AddPointsAsync(userId, ev.ClubId, 10, PointType.CheckIn,
+            $"Check-in sự kiện: {ev.Name}", eventId);
+
+        await _auditService.LogAsync("EventRegistration", reg.Id, "CheckIn",
+            requesterId, null, ev.ClubId, null, $"Check-in user {userId} vào sự kiện: {ev.Name}");
+
+        return ApiResult<bool>.Success(true);
+    }
+
+    public async Task<List<EventRegistrationDto>> GetMyRegistrationsAsync(Guid userId)
+    {
+        return await _uow.EventRegistrations.QueryMyRegistrations(userId)
+            .Select(r => new EventRegistrationDto(
+                r.Id, r.EventId, r.Event.Name,
+                r.IsCheckedIn, r.CheckInTime, r.RegisteredAt))
+            .ToListAsync();
+    }
+
+    public async Task<PagedResult<EventRegistrationDto>> GetEventRegistrationsAsync(Guid eventId, int page, int pageSize)
+    {
+        var query = _uow.EventRegistrations.QueryEventRegistrations(eventId);
+
+        var total = await query.CountAsync();
+        var items = await query
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(r => new EventRegistrationDto(
+                r.Id, r.EventId, r.Event.Name,
+                r.IsCheckedIn, r.CheckInTime, r.RegisteredAt))
+            .ToListAsync();
+
+        return new PagedResult<EventRegistrationDto>(items, page, pageSize, total);
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private async Task<bool> IsClubAdminAsync(Guid clubId, Guid userId)
+        => await _uow.ClubMembers.IsClubAdminAsync(clubId, userId);
+
+    private async Task<bool> IsMemberAsync(Guid clubId, Guid userId)
+        => await _uow.ClubMembers.IsMemberAsync(clubId, userId);
+
+    private static EventDto MapToDto(Event e) => new(
+        e.Id, e.ClubId, e.Club?.Name ?? "", e.Name, e.Description,
+        e.Location, e.StartTime, e.EndTime, e.Capacity,
+        e.Registrations?.Count(r => !r.IsCancelled) ?? 0,
+        e.Status.ToString(), e.CreatedAt);
+}
