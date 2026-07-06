@@ -19,6 +19,9 @@ dotnet run --project src/ClubHub.API
 
 Khi chạy ở môi trường Development, Swagger được mở ở route gốc của ứng dụng. Ngoài Development, Swagger không được bật.
 
+## Kiến trúc tổng quan
+![ClubHub Architecture](docs/ClubHub.drawio.png)
+
 ## Cấu trúc project
 
 ```
