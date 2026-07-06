@@ -1,9 +1,9 @@
-using ClubHub.API.Data;
 using ClubHub.API.DTOs.Club;
 using ClubHub.API.DTOs.Common;
 using ClubHub.API.DTOs.Proposal;
 using ClubHub.API.Entities;
 using ClubHub.API.Enums;
+using ClubHub.API.Repositories;
 using ClubHub.API.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,12 +11,12 @@ namespace ClubHub.API.Services.Implementations;
 
 public class ProposalService : IProposalService
 {
-    private readonly AppDbContext _db;
+    private readonly IUnitOfWork _uow;
     private readonly IClubService _clubService;
 
-    public ProposalService(AppDbContext db, IClubService clubService)
+    public ProposalService(IUnitOfWork uow, IClubService clubService)
     {
-        _db = db;
+        _uow = uow;
         _clubService = clubService;
     }
 
@@ -42,14 +42,14 @@ public class ProposalService : IProposalService
             SubmittedBy = submittedBy
         };
 
-        _db.ClubProposals.Add(proposal);
-        await _db.SaveChangesAsync();
+        _uow.Proposals.Add(proposal);
+        await _uow.SaveChangesAsync();
         return ApiResult<ProposalDto>.Success(MapToDto(proposal));
     }
 
     public async Task<ApiResult<bool>> ReviewAsync(Guid proposalId, ReviewProposalRequest req, Guid reviewerId)
     {
-        var proposal = await _db.ClubProposals.FindAsync(proposalId);
+        var proposal = await _uow.Proposals.GetByIdAsync(proposalId);
         if (proposal == null) return ApiResult<bool>.Failure("Hồ sơ không tồn tại.");
         if (proposal.Status != ProposalStatus.Pending && proposal.Status != ProposalStatus.NeedsRevision)
             return ApiResult<bool>.Failure("Hồ sơ này đã được xử lý.");
@@ -73,13 +73,13 @@ public class ProposalService : IProposalService
             proposal.RejectionReason = req.RejectionReason;
         }
 
-        await _db.SaveChangesAsync();
+        await _uow.SaveChangesAsync();
         return ApiResult<bool>.Success(true);
     }
 
     public async Task<ApiResult<bool>> RequestRevisionAsync(Guid proposalId, RequestRevisionRequest req, Guid reviewerId)
     {
-        var proposal = await _db.ClubProposals.FindAsync(proposalId);
+        var proposal = await _uow.Proposals.GetByIdAsync(proposalId);
         if (proposal == null) return ApiResult<bool>.Failure("Hồ sơ không tồn tại.");
         if (proposal.Status != ProposalStatus.Pending)
             return ApiResult<bool>.Failure("Chỉ có thể yêu cầu bổ sung khi hồ sơ đang chờ xử lý.");
@@ -89,15 +89,13 @@ public class ProposalService : IProposalService
         proposal.ReviewedBy = reviewerId;
         proposal.ReviewedAt = DateTime.UtcNow;
 
-        await _db.SaveChangesAsync();
+        await _uow.SaveChangesAsync();
         return ApiResult<bool>.Success(true);
     }
 
     public async Task<ProposalDetailDto?> GetByIdAsync(Guid proposalId)
     {
-        var p = await _db.ClubProposals
-            .Include(pr => pr.Submitter)
-            .FirstOrDefaultAsync(pr => pr.Id == proposalId);
+        var p = await _uow.Proposals.GetWithSubmitterAsync(proposalId);
 
         if (p == null) return null;
 
@@ -112,7 +110,7 @@ public class ProposalService : IProposalService
 
     public async Task<PagedResult<ProposalDto>> GetAllAsync(string? status, int page, int pageSize)
     {
-        var query = _db.ClubProposals.AsQueryable();
+        var query = _uow.Proposals.QueryAll();
 
         if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<ProposalStatus>(status, true, out var s))
             query = query.Where(p => p.Status == s);
@@ -129,9 +127,7 @@ public class ProposalService : IProposalService
 
     public async Task<List<ProposalDto>> GetMyProposalsAsync(Guid userId)
     {
-        return await _db.ClubProposals
-            .Where(p => p.SubmittedBy == userId)
-            .OrderByDescending(p => p.SubmittedAt)
+        return await _uow.Proposals.QueryMyProposals(userId)
             .Select(p => MapToDto(p))
             .ToListAsync();
     }

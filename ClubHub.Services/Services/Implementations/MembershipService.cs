@@ -1,26 +1,25 @@
-using ClubHub.API.Data;
 using ClubHub.API.DTOs.Common;
 using ClubHub.API.DTOs.Membership;
 using ClubHub.API.Entities;
 using ClubHub.API.Enums;
+using ClubHub.API.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 namespace ClubHub.API.Services.Interfaces;
 
 public class MembershipService : IMembershipService
 {
-    private readonly AppDbContext _db;
+    private readonly IUnitOfWork _uow;
 
-    public MembershipService(AppDbContext db) => _db = db;
+    public MembershipService(IUnitOfWork uow) => _uow = uow;
 
     public async Task<ApiResult<bool>> RequestJoinAsync(Guid clubId, Guid userId, JoinClubRequest req)
     {
-        var club = await _db.Clubs.FindAsync(clubId);
+        var club = await _uow.Clubs.GetByIdAsync(clubId);
         if (club == null || club.Status != ClubStatus.Active)
             return ApiResult<bool>.Failure("CLB không tồn tại hoặc không hoạt động.");
 
-        var existing = await _db.ClubMembers.FirstOrDefaultAsync(m =>
-            m.ClubId == clubId && m.UserId == userId);
+        var existing = await _uow.ClubMembers.GetByUserAndClubAsync(clubId, userId);
 
         if (existing != null)
         {
@@ -38,14 +37,14 @@ public class MembershipService : IMembershipService
             Status = MembershipStatus.Pending
         };
 
-        _db.ClubMembers.Add(membership);
-        await _db.SaveChangesAsync();
+        _uow.ClubMembers.Add(membership);
+        await _uow.SaveChangesAsync();
         return ApiResult<bool>.Success(true);
     }
 
     public async Task<ApiResult<bool>> ReviewRequestAsync(Guid membershipId, Guid reviewerId, ReviewMembershipRequest req)
     {
-        var membership = await _db.ClubMembers.FindAsync(membershipId);
+        var membership = await _uow.ClubMembers.GetByIdAsync(membershipId);
         if (membership == null) return ApiResult<bool>.Failure("Đơn không tồn tại.");
         if (membership.Status != MembershipStatus.Pending)
             return ApiResult<bool>.Failure("Đơn này đã được xử lý.");
@@ -62,23 +61,21 @@ public class MembershipService : IMembershipService
         else
             membership.RejectionReason = req.RejectionReason;
 
-        await _db.SaveChangesAsync();
+        await _uow.SaveChangesAsync();
         return ApiResult<bool>.Success(true);
     }
 
     public async Task<ApiResult<bool>> LeaveClubAsync(Guid clubId, Guid userId)
     {
-        var membership = await _db.ClubMembers.FirstOrDefaultAsync(m =>
-            m.ClubId == clubId && m.UserId == userId && m.Status == MembershipStatus.Approved);
-
-        if (membership == null) return ApiResult<bool>.Failure("Bạn không phải thành viên CLB này.");
+        var membership = await _uow.ClubMembers.GetByUserAndClubAsync(clubId, userId);
+        if (membership == null || membership.Status != MembershipStatus.Approved) return ApiResult<bool>.Failure("Bạn không phải thành viên CLB này.");
 
         if (membership.RoleInClub == ClubRole.President)
             return ApiResult<bool>.Failure("Chủ nhiệm phải chuyển quyền trước khi rời CLB.");
 
         membership.Status = MembershipStatus.Left;
         membership.LeftAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
+        await _uow.SaveChangesAsync();
         return ApiResult<bool>.Success(true);
     }
 
@@ -87,16 +84,14 @@ public class MembershipService : IMembershipService
         if (!await IsClubAdminAsync(clubId, requesterId))
             return ApiResult<bool>.Failure("Bạn không có quyền xóa thành viên.");
 
-        var membership = await _db.ClubMembers.FirstOrDefaultAsync(m =>
-            m.ClubId == clubId && m.UserId == memberId && m.Status == MembershipStatus.Approved);
-
-        if (membership == null) return ApiResult<bool>.Failure("Thành viên không tồn tại.");
+        var membership = await _uow.ClubMembers.GetByUserAndClubAsync(clubId, memberId);
+        if (membership == null || membership.Status != MembershipStatus.Approved) return ApiResult<bool>.Failure("Thành viên không tồn tại.");
         if (membership.RoleInClub == ClubRole.President)
             return ApiResult<bool>.Failure("Không thể xóa chủ nhiệm CLB.");
 
         membership.Status = MembershipStatus.Left;
         membership.LeftAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
+        await _uow.SaveChangesAsync();
         return ApiResult<bool>.Success(true);
     }
 
@@ -105,43 +100,33 @@ public class MembershipService : IMembershipService
         if (!await IsClubAdminAsync(clubId, requesterId))
             return ApiResult<bool>.Failure("Bạn không có quyền gán vai trò.");
 
-        var membership = await _db.ClubMembers.FirstOrDefaultAsync(m =>
-            m.ClubId == clubId && m.UserId == req.UserId && m.Status == MembershipStatus.Approved);
-
-        if (membership == null) return ApiResult<bool>.Failure("Thành viên không tồn tại.");
+        var membership = await _uow.ClubMembers.GetByUserAndClubAsync(clubId, req.UserId);
+        if (membership == null || membership.Status != MembershipStatus.Approved) return ApiResult<bool>.Failure("Thành viên không tồn tại.");
 
         membership.RoleInClub = req.NewRole;
-        await _db.SaveChangesAsync();
+        await _uow.SaveChangesAsync();
         return ApiResult<bool>.Success(true);
     }
 
     public async Task<ApiResult<bool>> TransferAdminAsync(Guid clubId, TransferAdminRequest req, Guid currentAdminId)
     {
-        var currentAdmin = await _db.ClubMembers.FirstOrDefaultAsync(m =>
-            m.ClubId == clubId && m.UserId == currentAdminId &&
-            m.Status == MembershipStatus.Approved && m.RoleInClub == ClubRole.President);
-
-        if (currentAdmin == null)
+        var currentAdmin = await _uow.ClubMembers.GetByUserAndClubAsync(clubId, currentAdminId);
+        if (currentAdmin == null || currentAdmin.Status != MembershipStatus.Approved || currentAdmin.RoleInClub != ClubRole.President)
             return ApiResult<bool>.Failure("Bạn không phải chủ nhiệm CLB.");
 
-        var newAdmin = await _db.ClubMembers.FirstOrDefaultAsync(m =>
-            m.ClubId == clubId && m.UserId == req.NewAdminUserId && m.Status == MembershipStatus.Approved);
-
-        if (newAdmin == null)
+        var newAdmin = await _uow.ClubMembers.GetByUserAndClubAsync(clubId, req.NewAdminUserId);
+        if (newAdmin == null || newAdmin.Status != MembershipStatus.Approved)
             return ApiResult<bool>.Failure("Người nhận quyền không phải thành viên CLB.");
 
         currentAdmin.RoleInClub = ClubRole.Member;
         newAdmin.RoleInClub = ClubRole.President;
-        await _db.SaveChangesAsync();
+        await _uow.SaveChangesAsync();
         return ApiResult<bool>.Success(true);
     }
 
     public async Task<PagedResult<MembershipRequestDto>> GetPendingRequestsAsync(Guid clubId, int page, int pageSize)
     {
-        var query = _db.ClubMembers
-            .Include(m => m.User)
-            .Where(m => m.ClubId == clubId && m.Status == MembershipStatus.Pending)
-            .OrderBy(m => m.RequestedAt);
+        var query = _uow.ClubMembers.QueryPendingRequests(clubId);
 
         var total = await query.CountAsync();
         var items = await query
@@ -157,10 +142,7 @@ public class MembershipService : IMembershipService
 
     public async Task<PagedResult<ClubMemberDto>> GetMembersAsync(Guid clubId, int page, int pageSize)
     {
-        var query = _db.ClubMembers
-            .Include(m => m.User)
-            .Where(m => m.ClubId == clubId && m.Status == MembershipStatus.Approved)
-            .OrderBy(m => m.JoinedAt);
+        var query = _uow.ClubMembers.QueryApprovedMembers(clubId);
 
         var total = await query.CountAsync();
         var items = await query
@@ -176,9 +158,7 @@ public class MembershipService : IMembershipService
 
     public async Task<List<MyMembershipDto>> GetMyMembershipsAsync(Guid userId)
     {
-        return await _db.ClubMembers
-            .Include(m => m.Club)
-            .Where(m => m.UserId == userId)
+        return await _uow.ClubMembers.QueryMyMemberships(userId)
             .Select(m => new MyMembershipDto(
                 m.ClubId, m.Club.Name, m.Club.LogoUrl,
                 m.RoleInClub.ToString(), m.Status.ToString(),
@@ -187,7 +167,7 @@ public class MembershipService : IMembershipService
     }
 
     private async Task<bool> IsClubAdminAsync(Guid clubId, Guid userId)
-        => await _db.ClubMembers.AnyAsync(m =>
+        => await _uow.ClubMembers.AnyAsync(m =>
             m.ClubId == clubId && m.UserId == userId &&
             m.Status == MembershipStatus.Approved &&
             (m.RoleInClub == ClubRole.ClubAdmin || m.RoleInClub == ClubRole.President));

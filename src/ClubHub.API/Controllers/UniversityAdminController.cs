@@ -16,8 +16,7 @@ public class UniversityAdminController : ControllerBase
 {
     private readonly IClubService _clubService;
 
-    public UniversityAdminController(IClubService clubService)
-        => _clubService = clubService;
+    public UniversityAdminController(IClubService clubService) => _clubService = clubService;
 
     /// <summary>Xem toàn bộ CLB (mọi trạng thái)</summary>
     [HttpGet("clubs")]

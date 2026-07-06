@@ -1,29 +1,26 @@
-using ClubHub.API.Data;
 using ClubHub.API.DTOs.Common;
 using ClubHub.API.DTOs.Event;
 using ClubHub.API.Entities;
 using ClubHub.API.Enums;
+using ClubHub.API.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 namespace ClubHub.API.Services.Interfaces;
 
 public class EventService : IEventService
 {
-    private readonly AppDbContext _db;
+    private readonly IUnitOfWork _uow;
     private readonly IPointService _pointService;
 
-    public EventService(AppDbContext db, IPointService pointService)
+    public EventService(IUnitOfWork uow, IPointService pointService)
     {
-        _db = db;
+        _uow = uow;
         _pointService = pointService;
     }
 
     public async Task<PagedResult<EventDto>> GetClubEventsAsync(Guid clubId, int page, int pageSize)
     {
-        var query = _db.Events
-            .Include(e => e.Club)
-            .Where(e => e.ClubId == clubId && e.Status != EventStatus.Draft)
-            .OrderByDescending(e => e.StartTime);
+        var query = _uow.Events.QueryClubEvents(clubId);
 
         var total = await query.CountAsync();
         var items = await query
@@ -37,10 +34,7 @@ public class EventService : IEventService
 
     public async Task<EventDto?> GetEventByIdAsync(Guid eventId)
     {
-        var ev = await _db.Events
-            .Include(e => e.Club)
-            .Include(e => e.Registrations)
-            .FirstOrDefaultAsync(e => e.Id == eventId);
+        var ev = await _uow.Events.GetEventWithClubAsync(eventId);
 
         return ev == null ? null : MapToDto(ev);
     }
@@ -69,8 +63,8 @@ public class EventService : IEventService
             Status = EventStatus.Published
         };
 
-        _db.Events.Add(ev);
-        await _db.SaveChangesAsync();
+        _uow.Events.Add(ev);
+        await _uow.SaveChangesAsync();
 
         var result = await GetEventByIdAsync(ev.Id);
         return ApiResult<EventDto>.Success(result!);
@@ -78,7 +72,7 @@ public class EventService : IEventService
 
     public async Task<ApiResult<EventDto>> UpdateEventAsync(Guid eventId, UpdateEventRequest req, Guid requesterId)
     {
-        var ev = await _db.Events.FindAsync(eventId);
+        var ev = await _uow.Events.GetByIdAsync(eventId);
         if (ev == null) return ApiResult<EventDto>.Failure("Sự kiện không tồn tại.");
 
         if (!await IsClubAdminAsync(ev.ClubId, requesterId))
@@ -93,27 +87,27 @@ public class EventService : IEventService
         if (req.Status.HasValue) ev.Status = req.Status.Value;
         ev.UpdatedAt = DateTime.UtcNow;
 
-        await _db.SaveChangesAsync();
+        await _uow.SaveChangesAsync();
         var result = await GetEventByIdAsync(eventId);
         return ApiResult<EventDto>.Success(result!);
     }
 
     public async Task<ApiResult<bool>> DeleteEventAsync(Guid eventId, Guid requesterId)
     {
-        var ev = await _db.Events.FindAsync(eventId);
+        var ev = await _uow.Events.GetByIdAsync(eventId);
         if (ev == null) return ApiResult<bool>.Failure("Sự kiện không tồn tại.");
 
         if (!await IsClubAdminAsync(ev.ClubId, requesterId))
             return ApiResult<bool>.Failure("Bạn không có quyền xóa sự kiện này.");
 
         ev.Status = EventStatus.Cancelled;
-        await _db.SaveChangesAsync();
+        await _uow.SaveChangesAsync();
         return ApiResult<bool>.Success(true);
     }
 
     public async Task<ApiResult<bool>> RegisterForEventAsync(Guid eventId, Guid userId)
     {
-        var ev = await _db.Events.Include(e => e.Registrations).FirstOrDefaultAsync(e => e.Id == eventId);
+        var ev = await _uow.Events.GetEventWithRegistrationsAsync(eventId);
         if (ev == null) return ApiResult<bool>.Failure("Sự kiện không tồn tại.");
         if (ev.Status != EventStatus.Published) return ApiResult<bool>.Failure("Sự kiện không còn nhận đăng ký.");
 
@@ -123,41 +117,39 @@ public class EventService : IEventService
         if (ev.Registrations.Any(r => r.UserId == userId && !r.IsCancelled))
             return ApiResult<bool>.Failure("Bạn đã đăng ký sự kiện này rồi.");
 
-        _db.EventRegistrations.Add(new EventRegistration { EventId = eventId, UserId = userId });
-        await _db.SaveChangesAsync();
+        _uow.EventRegistrations.Add(new EventRegistration { EventId = eventId, UserId = userId });
+        await _uow.SaveChangesAsync();
         return ApiResult<bool>.Success(true);
     }
 
     public async Task<ApiResult<bool>> CancelRegistrationAsync(Guid eventId, Guid userId)
     {
-        var reg = await _db.EventRegistrations.FirstOrDefaultAsync(r =>
-            r.EventId == eventId && r.UserId == userId && !r.IsCancelled);
+        var reg = await _uow.EventRegistrations.GetByEventAndUserAsync(eventId, userId);
 
         if (reg == null) return ApiResult<bool>.Failure("Bạn chưa đăng ký sự kiện này.");
 
         reg.IsCancelled = true;
         reg.CancelledAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
+        await _uow.SaveChangesAsync();
         return ApiResult<bool>.Success(true);
     }
 
     public async Task<ApiResult<bool>> CheckInAsync(Guid eventId, Guid userId, Guid requesterId)
     {
-        var ev = await _db.Events.FindAsync(eventId);
+        var ev = await _uow.Events.GetByIdAsync(eventId);
         if (ev == null) return ApiResult<bool>.Failure("Sự kiện không tồn tại.");
 
         if (!await IsClubAdminAsync(ev.ClubId, requesterId))
             return ApiResult<bool>.Failure("Bạn không có quyền check-in thành viên.");
 
-        var reg = await _db.EventRegistrations.FirstOrDefaultAsync(r =>
-            r.EventId == eventId && r.UserId == userId && !r.IsCancelled);
+        var reg = await _uow.EventRegistrations.GetByEventAndUserAsync(eventId, userId);
 
         if (reg == null) return ApiResult<bool>.Failure("Người dùng chưa đăng ký sự kiện.");
         if (reg.IsCheckedIn) return ApiResult<bool>.Failure("Người dùng đã check-in rồi.");
 
         reg.IsCheckedIn = true;
         reg.CheckInTime = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
+        await _uow.SaveChangesAsync();
 
         // Award points
         await _pointService.AddPointsAsync(userId, ev.ClubId, 10, PointType.CheckIn,
@@ -168,10 +160,7 @@ public class EventService : IEventService
 
     public async Task<List<EventRegistrationDto>> GetMyRegistrationsAsync(Guid userId)
     {
-        return await _db.EventRegistrations
-            .Include(r => r.Event)
-            .Where(r => r.UserId == userId && !r.IsCancelled)
-            .OrderByDescending(r => r.RegisteredAt)
+        return await _uow.EventRegistrations.QueryMyRegistrations(userId)
             .Select(r => new EventRegistrationDto(
                 r.Id, r.EventId, r.Event.Name,
                 r.IsCheckedIn, r.CheckInTime, r.RegisteredAt))
@@ -180,10 +169,7 @@ public class EventService : IEventService
 
     public async Task<PagedResult<EventRegistrationDto>> GetEventRegistrationsAsync(Guid eventId, int page, int pageSize)
     {
-        var query = _db.EventRegistrations
-            .Include(r => r.Event)
-            .Where(r => r.EventId == eventId)
-            .OrderBy(r => r.RegisteredAt);
+        var query = _uow.EventRegistrations.QueryEventRegistrations(eventId);
 
         var total = await query.CountAsync();
         var items = await query
@@ -199,14 +185,10 @@ public class EventService : IEventService
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private async Task<bool> IsClubAdminAsync(Guid clubId, Guid userId)
-        => await _db.ClubMembers.AnyAsync(m =>
-            m.ClubId == clubId && m.UserId == userId &&
-            m.Status == MembershipStatus.Approved &&
-            (m.RoleInClub == ClubRole.ClubAdmin || m.RoleInClub == ClubRole.President));
+        => await _uow.ClubMembers.IsClubAdminAsync(clubId, userId);
 
     private async Task<bool> IsMemberAsync(Guid clubId, Guid userId)
-        => await _db.ClubMembers.AnyAsync(m =>
-            m.ClubId == clubId && m.UserId == userId && m.Status == MembershipStatus.Approved);
+        => await _uow.ClubMembers.IsMemberAsync(clubId, userId);
 
     private static EventDto MapToDto(Event e) => new(
         e.Id, e.ClubId, e.Club?.Name ?? "", e.Name, e.Description,

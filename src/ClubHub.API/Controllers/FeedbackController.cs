@@ -14,8 +14,7 @@ public class FeedbackController : ControllerBase
 {
     private readonly IFeedbackService _feedbackService;
 
-    public FeedbackController(IFeedbackService feedbackService)
-        => _feedbackService = feedbackService;
+    public FeedbackController(IFeedbackService feedbackService) => _feedbackService = feedbackService;
 
     /// <summary>[Club Member] Gửi feedback sau sự kiện</summary>
     [HttpPost]

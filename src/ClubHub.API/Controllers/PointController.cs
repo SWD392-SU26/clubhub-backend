@@ -21,9 +21,7 @@ public class PointController : ControllerBase
     public async Task<IActionResult> GetMyPoints(Guid clubId)
     {
         var result = await _pointService.GetMyPointsInClubAsync(GetUserId(), clubId);
-        return result != null
-            ? Ok(ApiResponse.Ok(result))
-            : NotFound(ApiResponse.Fail("CLB không tồn tại."));
+        return result != null ? Ok(ApiResponse.Ok(result)) : NotFound(ApiResponse.Fail("CLB không tồn tại."));
     }
 
     /// <summary>Xem bảng xếp hạng điểm thi đua của CLB</summary>

@@ -1,23 +1,21 @@
-using ClubHub.API.Data;
 using ClubHub.API.DTOs.Club;
 using ClubHub.API.DTOs.Common;
 using ClubHub.API.Entities;
 using ClubHub.API.Enums;
+using ClubHub.API.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 namespace ClubHub.API.Services.Interfaces;
 
 public class ClubService : IClubService
 {
-    private readonly AppDbContext _db;
+    private readonly IUnitOfWork _uow;
 
-    public ClubService(AppDbContext db) => _db = db;
+    public ClubService(IUnitOfWork uow) => _uow = uow;
 
     public async Task<PagedResult<ClubSummaryDto>> GetAllAsync(ClubFilterRequest filter)
     {
-        var query = _db.Clubs
-            .Where(c => c.Status == ClubStatus.Active)
-            .AsQueryable();
+        var query = _uow.Clubs.QueryActiveClubs();
 
         if (filter.Category.HasValue)
             query = query.Where(c => c.Category == filter.Category.Value);
@@ -44,10 +42,7 @@ public class ClubService : IClubService
 
     public async Task<ClubDetailDto?> GetByIdAsync(Guid clubId, Guid? currentUserId = null)
     {
-        var club = await _db.Clubs
-            .Include(c => c.Members.Where(m => m.Status == MembershipStatus.Approved))
-                .ThenInclude(m => m.User)
-            .FirstOrDefaultAsync(c => c.Id == clubId && c.Status != ClubStatus.Deleted);
+        var club = await _uow.Clubs.GetClubWithMembersAsync(clubId);
 
         if (club == null) return null;
 
@@ -74,10 +69,10 @@ public class ClubService : IClubService
             CreatedBy = createdBy
         };
 
-        _db.Clubs.Add(club);
+        _uow.Clubs.Add(club);
 
         // Auto-add creator as President
-        _db.ClubMembers.Add(new ClubMember
+        _uow.ClubMembers.Add(new ClubMember
         {
             UserId = createdBy,
             ClubId = club.Id,
@@ -86,14 +81,14 @@ public class ClubService : IClubService
             JoinedAt = DateTime.UtcNow
         });
 
-        await _db.SaveChangesAsync();
+        await _uow.SaveChangesAsync();
         var detail = await GetByIdAsync(club.Id);
         return ApiResult<ClubDetailDto>.Success(detail!);
     }
 
     public async Task<ApiResult<ClubDetailDto>> UpdateClubAsync(Guid clubId, UpdateClubRequest req, Guid requesterId)
     {
-        var club = await _db.Clubs.FindAsync(clubId);
+        var club = await _uow.Clubs.GetByIdAsync(clubId);
         if (club == null) return ApiResult<ClubDetailDto>.Failure("CLB không tồn tại.");
 
         var isAdmin = await IsClubAdminAsync(clubId, requesterId);
@@ -105,7 +100,7 @@ public class ClubService : IClubService
         if (req.CoverImageUrl != null) club.CoverImageUrl = req.CoverImageUrl;
         club.UpdatedAt = DateTime.UtcNow;
 
-        await _db.SaveChangesAsync();
+        await _uow.SaveChangesAsync();
         var detail = await GetByIdAsync(clubId);
         return ApiResult<ClubDetailDto>.Success(detail!);
     }
@@ -118,27 +113,24 @@ public class ClubService : IClubService
 
     public async Task<ApiResult<bool>> DeleteClubAsync(Guid clubId, bool hardDelete = false)
     {
-        var club = await _db.Clubs.FindAsync(clubId);
+        var club = await _uow.Clubs.GetByIdAsync(clubId);
         if (club == null) return ApiResult<bool>.Failure("CLB không tồn tại.");
 
         if (hardDelete)
-            _db.Clubs.Remove(club);
+            _uow.Clubs.Remove(club);
         else
         {
             club.Status = ClubStatus.Deleted;
             club.UpdatedAt = DateTime.UtcNow;
         }
 
-        await _db.SaveChangesAsync();
+        await _uow.SaveChangesAsync();
         return ApiResult<bool>.Success(true);
     }
 
     public async Task<PagedResult<ClubSummaryDto>> GetMyClubsAsync(Guid userId, int page, int pageSize)
     {
-        var query = _db.ClubMembers
-            .Where(m => m.UserId == userId && m.Status == MembershipStatus.Approved)
-            .Select(m => m.Club)
-            .Where(c => c.Status != ClubStatus.Deleted);
+        var query = _uow.Clubs.QueryMyClubs(userId);
 
         var total = await query.CountAsync();
         var items = await query
@@ -157,18 +149,15 @@ public class ClubService : IClubService
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private async Task<bool> IsClubAdminAsync(Guid clubId, Guid userId)
-        => await _db.ClubMembers.AnyAsync(m =>
-            m.ClubId == clubId && m.UserId == userId &&
-            m.Status == MembershipStatus.Approved &&
-            (m.RoleInClub == ClubRole.ClubAdmin || m.RoleInClub == ClubRole.President));
+        => await _uow.ClubMembers.IsClubAdminAsync(clubId, userId);
 
     private async Task<ApiResult<bool>> ChangeStatusAsync(Guid clubId, ClubStatus status)
     {
-        var club = await _db.Clubs.FindAsync(clubId);
+        var club = await _uow.Clubs.GetByIdAsync(clubId);
         if (club == null) return ApiResult<bool>.Failure("CLB không tồn tại.");
         club.Status = status;
         club.UpdatedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
+        await _uow.SaveChangesAsync();
         return ApiResult<bool>.Success(true);
     }
 }

@@ -69,3 +69,10 @@ public enum PointType
     Bonus,
     Penalty
 }
+
+public enum RequestStatus
+{
+    Pending,
+    Approve,
+    Rejected
+}

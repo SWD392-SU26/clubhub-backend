@@ -51,9 +51,7 @@ public class EventController : ControllerBase
     public async Task<IActionResult> Update(Guid eventId, [FromBody] UpdateEventRequest request)
     {
         var result = await _eventService.UpdateEventAsync(eventId, request, GetUserId());
-        return result.IsSuccess
-            ? Ok(ApiResponse.Ok(result.Data!))
-            : BadRequest(ApiResponse.Fail(result.Error!));
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data!)) : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
     /// <summary>[Club Admin] Hủy/xóa sự kiện</summary>
@@ -62,9 +60,7 @@ public class EventController : ControllerBase
     public async Task<IActionResult> Delete(Guid eventId)
     {
         var result = await _eventService.DeleteEventAsync(eventId, GetUserId());
-        return result.IsSuccess
-            ? Ok(ApiResponse.Ok(result.Data))
-            : BadRequest(ApiResponse.Fail(result.Error!));
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
     /// <summary>[Club Member] Đăng ký tham gia sự kiện</summary>
@@ -84,9 +80,7 @@ public class EventController : ControllerBase
     public async Task<IActionResult> CancelRegister(Guid eventId)
     {
         var result = await _eventService.CancelRegistrationAsync(eventId, GetUserId());
-        return result.IsSuccess
-            ? Ok(ApiResponse.Ok(result.Data))
-            : BadRequest(ApiResponse.Fail(result.Error!));
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
     /// <summary>[Club Admin] Check-in thành viên vào sự kiện</summary>
@@ -95,9 +89,7 @@ public class EventController : ControllerBase
     public async Task<IActionResult> CheckIn(Guid eventId, Guid userId)
     {
         var result = await _eventService.CheckInAsync(eventId, userId, GetUserId());
-        return result.IsSuccess
-            ? Ok(ApiResponse.Ok(result.Data))
-            : BadRequest(ApiResponse.Fail(result.Error!));
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
     /// <summary>Xem danh sách đăng ký của sự kiện</summary>
