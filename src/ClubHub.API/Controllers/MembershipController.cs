@@ -94,6 +94,30 @@ public class MembershipController : ControllerBase
         return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
+    /// <summary>[President] Đề cử người kế nhiệm (khi muốn rời CLB)</summary>
+    [HttpPut("nominate-successor")]
+    public async Task<IActionResult> NominateSuccessor(Guid clubId, [FromBody] TransferAdminRequest request)
+    {
+        var result = await _membershipService.NominateSuccessorAsync(clubId, request.NewAdminUserId, GetUserId());
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
+    }
+
+    /// <summary>[Member] Chấp nhận kế nhiệm chủ nhiệm</summary>
+    [HttpPut("accept-succession")]
+    public async Task<IActionResult> AcceptSuccession(Guid clubId)
+    {
+        var result = await _membershipService.AcceptSuccessionAsync(clubId, GetUserId());
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
+    }
+
+    /// <summary>[Member] Từ chối kế nhiệm chủ nhiệm</summary>
+    [HttpPut("reject-succession")]
+    public async Task<IActionResult> RejectSuccession(Guid clubId)
+    {
+        var result = await _membershipService.RejectSuccessionAsync(clubId, GetUserId());
+        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
+    }
+
     private Guid GetUserId() =>
         Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 }

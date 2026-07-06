@@ -12,12 +12,15 @@ public class EventService : IEventService
     private readonly IUnitOfWork _uow;
     private readonly IPointService _pointService;
     private readonly INotificationService _notificationService;
+    private readonly IAuditService _auditService;
 
-    public EventService(IUnitOfWork uow, IPointService pointService, INotificationService notificationService)
+    public EventService(IUnitOfWork uow, IPointService pointService,
+        INotificationService notificationService, IAuditService auditService)
     {
         _uow = uow;
         _pointService = pointService;
         _notificationService = notificationService;
+        _auditService = auditService;
     }
 
     public async Task<PagedResult<EventDto>> GetClubEventsAsync(Guid clubId, int page, int pageSize)
@@ -80,6 +83,10 @@ public class EventService : IEventService
             "NEW_EVENT");
 
         var result = await GetEventByIdAsync(ev.Id);
+
+        await _auditService.LogAsync("Event", ev.Id, "Create",
+            createdBy, null, clubId, null, $"Tạo sự kiện: {ev.Name}");
+
         return ApiResult<EventDto>.Success(result!);
     }
 
@@ -101,6 +108,10 @@ public class EventService : IEventService
         ev.UpdatedAt = DateTime.UtcNow;
 
         await _uow.SaveChangesAsync();
+
+        await _auditService.LogAsync("Event", eventId, "Update",
+            requesterId, null, ev.ClubId, null, $"Cập nhật sự kiện: {ev.Name}");
+
         var result = await GetEventByIdAsync(eventId);
         return ApiResult<EventDto>.Success(result!);
     }
@@ -128,6 +139,9 @@ public class EventService : IEventService
             $"Sự kiện {ev.Name} đã bị hủy. Xin lỗi vì sự bất tiện này.",
             "EVENT_CANCELLED");
 
+        await _auditService.LogAsync("Event", eventId, "CancelEvent",
+            requesterId, null, ev.ClubId, null, $"Hủy sự kiện: {ev.Name}");
+
         return ApiResult<bool>.Success(true);
     }
 
@@ -143,8 +157,13 @@ public class EventService : IEventService
         if (ev.Registrations.Any(r => r.UserId == userId && !r.IsCancelled))
             return ApiResult<bool>.Failure("Bạn đã đăng ký sự kiện này rồi.");
 
-        _uow.EventRegistrations.Add(new EventRegistration { EventId = eventId, UserId = userId });
+        var reg = new EventRegistration { EventId = eventId, UserId = userId };
+        _uow.EventRegistrations.Add(reg);
         await _uow.SaveChangesAsync();
+
+        await _auditService.LogAsync("EventRegistration", reg.Id, "Register",
+            userId, null, ev.ClubId, null, $"Đăng ký sự kiện: {ev.Name}");
+
         return ApiResult<bool>.Success(true);
     }
 
@@ -157,6 +176,11 @@ public class EventService : IEventService
         reg.IsCancelled = true;
         reg.CancelledAt = DateTime.UtcNow;
         await _uow.SaveChangesAsync();
+
+        var ev = await _uow.Events.GetByIdAsync(eventId);
+        await _auditService.LogAsync("EventRegistration", reg.Id, "CancelRegistration",
+            userId, null, ev?.ClubId, null, $"Hủy đăng ký sự kiện: {ev?.Name}");
+
         return ApiResult<bool>.Success(true);
     }
 
@@ -180,6 +204,9 @@ public class EventService : IEventService
         // Award points
         await _pointService.AddPointsAsync(userId, ev.ClubId, 10, PointType.CheckIn,
             $"Check-in sự kiện: {ev.Name}", eventId);
+
+        await _auditService.LogAsync("EventRegistration", reg.Id, "CheckIn",
+            requesterId, null, ev.ClubId, null, $"Check-in user {userId} vào sự kiện: {ev.Name}");
 
         return ApiResult<bool>.Success(true);
     }

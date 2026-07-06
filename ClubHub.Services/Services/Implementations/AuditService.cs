@@ -14,6 +14,13 @@ public class AuditService : IAuditService
     public async Task LogAsync(string entityType, Guid entityId, string action, Guid? performedBy,
         string? performedByName, Guid? clubId, string? details = null, string? description = null)
     {
+        // Auto-resolve performer name if not provided
+        if (string.IsNullOrEmpty(performedByName) && performedBy.HasValue)
+        {
+            var user = await _uow.Users.GetByIdAsync(performedBy.Value);
+            performedByName = user?.FullName;
+        }
+
         _uow.AuditLogs.Add(new AuditLog
         {
             EntityType = entityType,

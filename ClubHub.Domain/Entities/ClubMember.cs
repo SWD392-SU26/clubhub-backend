@@ -18,6 +18,9 @@ public class ClubMember
     public Guid? ReviewedBy { get; set; }
     public DateTime? ReviewedAt { get; set; }
 
+    /// <summary>Người được đề xuất kế nhiệm chủ nhiệm</summary>
+    public Guid? SuccessorUserId { get; set; }
+
     public DateTime RequestedAt { get; set; } = DateTime.UtcNow;
     public DateTime? JoinedAt { get; set; }
     public DateTime? LeftAt { get; set; }

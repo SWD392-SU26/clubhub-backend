@@ -17,6 +17,8 @@ public class AppDbContext : DbContext
     public DbSet<Feedback> Feedbacks => Set<Feedback>();
     public DbSet<PointTransaction> PointTransactions => Set<PointTransaction>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<ProposalRevision> ProposalRevisions => Set<ProposalRevision>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -159,6 +161,30 @@ public class AppDbContext : DbContext
              .WithMany(u => u.Notifications)
              .HasForeignKey(n => n.UserId)
              .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ── ProposalRevision ──────────────────────────────────────────────────
+        modelBuilder.Entity<ProposalRevision>(e =>
+        {
+            e.HasKey(pr => pr.Id);
+
+            e.HasOne(pr => pr.Proposal)
+             .WithMany()
+             .HasForeignKey(pr => pr.ProposalId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ── AuditLog ──────────────────────────────────────────────────────────
+        modelBuilder.Entity<AuditLog>(e =>
+        {
+            e.HasKey(al => al.Id);
+            e.HasIndex(al => new { al.EntityType, al.EntityId });
+            e.HasIndex(al => al.ClubId);
+
+            e.HasOne(al => al.Performer)
+             .WithMany()
+             .HasForeignKey(al => al.PerformedBy)
+             .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

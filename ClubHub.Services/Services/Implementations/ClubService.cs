@@ -10,8 +10,13 @@ namespace ClubHub.API.Services.Interfaces;
 public class ClubService : IClubService
 {
     private readonly IUnitOfWork _uow;
+    private readonly IAuditService _auditService;
 
-    public ClubService(IUnitOfWork uow) => _uow = uow;
+    public ClubService(IUnitOfWork uow, IAuditService auditService)
+    {
+        _uow = uow;
+        _auditService = auditService;
+    }
 
     public async Task<PagedResult<ClubSummaryDto>> GetAllAsync(ClubFilterRequest filter)
     {
@@ -128,13 +133,28 @@ public class ClubService : IClubService
     }
 
     public async Task<ApiResult<bool>> HideClubAsync(Guid clubId)
-        => await ChangeStatusAsync(clubId, ClubStatus.Hidden);
+    {
+        var result = await ChangeStatusAsync(clubId, ClubStatus.Hidden);
+        if (result.IsSuccess)
+            await _auditService.LogAsync("Club", clubId, "Hide", null, null, clubId, null, "CLB bị ẩn");
+        return result;
+    }
 
     public async Task<ApiResult<bool>> LockClubAsync(Guid clubId)
-        => await ChangeStatusAsync(clubId, ClubStatus.Locked);
+    {
+        var result = await ChangeStatusAsync(clubId, ClubStatus.Locked);
+        if (result.IsSuccess)
+            await _auditService.LogAsync("Club", clubId, "Lock", null, null, clubId, null, "CLB bị khóa");
+        return result;
+    }
 
     public async Task<ApiResult<bool>> ArchiveClubAsync(Guid clubId)
-        => await ChangeStatusAsync(clubId, ClubStatus.Archived);
+    {
+        var result = await ChangeStatusAsync(clubId, ClubStatus.Archived);
+        if (result.IsSuccess)
+            await _auditService.LogAsync("Club", clubId, "Archive", null, null, clubId, null, "CLB được lưu trữ");
+        return result;
+    }
 
     public async Task<ApiResult<bool>> ReopenClubAsync(Guid clubId)
     {
@@ -146,6 +166,8 @@ public class ClubService : IClubService
         club.Status = ClubStatus.Active;
         club.UpdatedAt = DateTime.UtcNow;
         await _uow.SaveChangesAsync();
+
+        await _auditService.LogAsync("Club", clubId, "Reopen", null, null, clubId, null, "CLB được mở lại");
         return ApiResult<bool>.Success(true);
     }
 
@@ -156,7 +178,7 @@ public class ClubService : IClubService
         if (club.Status == ClubStatus.Dissolved)
             return ApiResult<bool>.Failure("CLB đã giải tán.");
 
-        // Archive all members as Left when club is dissolved
+        // Mark all members as Left when club is dissolved
         var members = await _uow.ClubMembers.Query()
             .Where(m => m.ClubId == clubId && m.Status == MembershipStatus.Approved)
             .ToListAsync();
@@ -170,6 +192,8 @@ public class ClubService : IClubService
         club.Status = ClubStatus.Dissolved;
         club.UpdatedAt = DateTime.UtcNow;
         await _uow.SaveChangesAsync();
+
+        await _auditService.LogAsync("Club", clubId, "Dissolve", null, null, clubId, null, "CLB giải tán");
         return ApiResult<bool>.Success(true);
     }
 
@@ -179,11 +203,15 @@ public class ClubService : IClubService
         if (club == null) return ApiResult<bool>.Failure("CLB không tồn tại.");
 
         if (hardDelete)
+        {
             _uow.Clubs.Remove(club);
+            await _auditService.LogAsync("Club", clubId, "HardDelete", null, null, null, null, "CLB bị xóa cứng");
+        }
         else
         {
             club.Status = ClubStatus.Deleted;
             club.UpdatedAt = DateTime.UtcNow;
+            await _auditService.LogAsync("Club", clubId, "SoftDelete", null, null, clubId, null, "CLB bị xóa mềm");
         }
 
         await _uow.SaveChangesAsync();

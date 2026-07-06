@@ -11,11 +11,13 @@ public class MembershipService : IMembershipService
 {
     private readonly IUnitOfWork _uow;
     private readonly INotificationService _notificationService;
+    private readonly IAuditService _auditService;
 
-    public MembershipService(IUnitOfWork uow, INotificationService notificationService)
+    public MembershipService(IUnitOfWork uow, INotificationService notificationService, IAuditService auditService)
     {
         _uow = uow;
         _notificationService = notificationService;
+        _auditService = auditService;
     }
 
     public async Task<ApiResult<bool>> RequestJoinAsync(Guid clubId, Guid userId, JoinClubRequest req)
@@ -44,6 +46,10 @@ public class MembershipService : IMembershipService
 
         _uow.ClubMembers.Add(membership);
         await _uow.SaveChangesAsync();
+
+        await _auditService.LogAsync("ClubMember", membership.Id, "RequestJoin",
+            userId, null, clubId, null, $"User {userId} requested to join club {clubId}");
+
         return ApiResult<bool>.Success(true);
     }
 
@@ -56,6 +62,10 @@ public class MembershipService : IMembershipService
         membership.Status = MembershipStatus.Cancelled;
         membership.ReviewedAt = DateTime.UtcNow;
         await _uow.SaveChangesAsync();
+
+        await _auditService.LogAsync("ClubMember", membership.Id, "CancelJoinRequest",
+            userId, null, clubId, null, "User cancelled join request");
+
         return ApiResult<bool>.Success(true);
     }
 
@@ -97,20 +107,30 @@ public class MembershipService : IMembershipService
         }
 
         await _uow.SaveChangesAsync();
+
+        await _auditService.LogAsync("ClubMember", membershipId, req.IsApproved ? "ApproveJoin" : "RejectJoin",
+            reviewerId, null, membership.ClubId, null,
+            req.IsApproved ? $"Duyệt đơn tham gia của user {membership.UserId}" : $"Từ chối đơn tham gia của user {membership.UserId}");
+
         return ApiResult<bool>.Success(true);
     }
 
     public async Task<ApiResult<bool>> LeaveClubAsync(Guid clubId, Guid userId)
     {
         var membership = await _uow.ClubMembers.GetByUserAndClubAsync(clubId, userId);
-        if (membership == null || membership.Status != MembershipStatus.Approved) return ApiResult<bool>.Failure("Bạn không phải thành viên CLB này.");
+        if (membership == null || membership.Status != MembershipStatus.Approved)
+            return ApiResult<bool>.Failure("Bạn không phải thành viên CLB này.");
 
         if (membership.RoleInClub == ClubRole.President)
-            return ApiResult<bool>.Failure("Chủ nhiệm phải chuyển quyền trước khi rời CLB.");
+            return ApiResult<bool>.Failure("Chủ nhiệm phải chuyển quyền hoặc đề xuất người kế nhiệm trước khi rời CLB.");
 
         membership.Status = MembershipStatus.Left;
         membership.LeftAt = DateTime.UtcNow;
         await _uow.SaveChangesAsync();
+
+        await _auditService.LogAsync("ClubMember", membership.Id, "LeaveClub",
+            userId, null, clubId, null, $"User {userId} left club {clubId}");
+
         return ApiResult<bool>.Success(true);
     }
 
@@ -120,7 +140,8 @@ public class MembershipService : IMembershipService
             return ApiResult<bool>.Failure("Bạn không có quyền xóa thành viên.");
 
         var membership = await _uow.ClubMembers.GetByUserAndClubAsync(clubId, memberId);
-        if (membership == null || membership.Status != MembershipStatus.Approved) return ApiResult<bool>.Failure("Thành viên không tồn tại.");
+        if (membership == null || membership.Status != MembershipStatus.Approved)
+            return ApiResult<bool>.Failure("Thành viên không tồn tại.");
         if (membership.RoleInClub == ClubRole.President)
             return ApiResult<bool>.Failure("Không thể xóa chủ nhiệm CLB.");
 
@@ -135,6 +156,10 @@ public class MembershipService : IMembershipService
             "MEMBER_REMOVED");
 
         await _uow.SaveChangesAsync();
+
+        await _auditService.LogAsync("ClubMember", membership.Id, "RemoveMember",
+            requesterId, null, clubId, null, $"User {requesterId} removed member {memberId} from club {clubId}");
+
         return ApiResult<bool>.Success(true);
     }
 
@@ -148,7 +173,8 @@ public class MembershipService : IMembershipService
             return ApiResult<bool>.Failure("Chỉ Chủ nhiệm mới có thể bổ nhiệm Chủ nhiệm mới.");
 
         var membership = await _uow.ClubMembers.GetByUserAndClubAsync(clubId, req.UserId);
-        if (membership == null || membership.Status != MembershipStatus.Approved) return ApiResult<bool>.Failure("Thành viên không tồn tại.");
+        if (membership == null || membership.Status != MembershipStatus.Approved)
+            return ApiResult<bool>.Failure("Thành viên không tồn tại.");
 
         var club = await _uow.Clubs.GetByIdAsync(clubId);
 
@@ -170,6 +196,7 @@ public class MembershipService : IMembershipService
             }
         }
 
+        var oldRole = membership.RoleInClub;
         membership.RoleInClub = req.NewRole;
 
         await _notificationService.SendNotificationAsync(
@@ -179,6 +206,12 @@ public class MembershipService : IMembershipService
             "ROLE_CHANGED");
 
         await _uow.SaveChangesAsync();
+
+        await _auditService.LogAsync("ClubMember", membership.Id, "AssignRole",
+            requesterId, null, clubId,
+            $"{{\"oldRole\":\"{oldRole}\",\"newRole\":\"{req.NewRole}\"}}",
+            $"User {requesterId} changed role of user {req.UserId} from {oldRole} to {req.NewRole}");
+
         return ApiResult<bool>.Success(true);
     }
 
@@ -203,6 +236,108 @@ public class MembershipService : IMembershipService
             "TRANSFER_ADMIN");
 
         await _uow.SaveChangesAsync();
+
+        await _auditService.LogAsync("ClubMember", currentAdmin.Id, "TransferAdmin",
+            currentAdminId, null, clubId, null,
+            $"User {currentAdminId} transferred presidency to user {req.NewAdminUserId}");
+
+        return ApiResult<bool>.Success(true);
+    }
+
+    public async Task<ApiResult<bool>> NominateSuccessorAsync(Guid clubId, Guid successorUserId, Guid currentAdminId)
+    {
+        var currentAdmin = await _uow.ClubMembers.GetByUserAndClubAsync(clubId, currentAdminId);
+        if (currentAdmin == null || currentAdmin.Status != MembershipStatus.Approved || currentAdmin.RoleInClub != ClubRole.President)
+            return ApiResult<bool>.Failure("Bạn không phải chủ nhiệm CLB.");
+
+        var successor = await _uow.ClubMembers.GetByUserAndClubAsync(clubId, successorUserId);
+        if (successor == null || successor.Status != MembershipStatus.Approved)
+            return ApiResult<bool>.Failure("Người kế nhiệm không phải thành viên CLB.");
+        if (successor.UserId == currentAdminId)
+            return ApiResult<bool>.Failure("Không thể đề cử chính mình.");
+
+        // Store the successor nomination
+        currentAdmin.SuccessorUserId = successorUserId;
+
+        var club = await _uow.Clubs.GetByIdAsync(clubId);
+        await _uow.SaveChangesAsync();
+
+        await _notificationService.SendNotificationAsync(
+            successorUserId,
+            "Đề cử chủ nhiệm",
+            $"Bạn đã được đề cử làm Chủ nhiệm CLB {club?.Name ?? ""}. Vui lòng vào mục thông báo để chấp nhận hoặc từ chối.",
+            "SUCCESSION_NOMINATED");
+
+        await _auditService.LogAsync("ClubMember", currentAdmin.Id, "NominateSuccessor",
+            currentAdminId, null, clubId,
+            $"{{\"successorUserId\":\"{successorUserId}\"}}",
+            $"President {currentAdminId} nominated user {successorUserId} as successor");
+
+        return ApiResult<bool>.Success(true);
+    }
+
+    public async Task<ApiResult<bool>> AcceptSuccessionAsync(Guid clubId, Guid userId)
+    {
+        var currentPresident = await _uow.ClubMembers.FirstOrDefaultAsync(m =>
+            m.ClubId == clubId && m.RoleInClub == ClubRole.President &&
+            m.Status == MembershipStatus.Approved && m.SuccessorUserId == userId);
+
+        if (currentPresident == null)
+            return ApiResult<bool>.Failure("Bạn không được đề cử làm chủ nhiệm CLB này.");
+
+        var successor = await _uow.ClubMembers.GetByUserAndClubAsync(clubId, userId);
+        if (successor == null || successor.Status != MembershipStatus.Approved)
+            return ApiResult<bool>.Failure("Bạn không phải thành viên CLB.");
+
+        // Transfer presidency
+        currentPresident.RoleInClub = ClubRole.Member;
+        currentPresident.SuccessorUserId = null;
+        successor.RoleInClub = ClubRole.President;
+
+        // Current president auto-leaves
+        currentPresident.Status = MembershipStatus.Left;
+        currentPresident.LeftAt = DateTime.UtcNow;
+
+        var club = await _uow.Clubs.GetByIdAsync(clubId);
+        await _uow.SaveChangesAsync();
+
+        await _notificationService.SendNotificationAsync(
+            currentPresident.UserId,
+            "Chuyển giao chủ nhiệm thành công",
+            $"Quyền chủ nhiệm CLB {club?.Name ?? ""} đã được chuyển giao thành công.",
+            "SUCCESSION_COMPLETED");
+
+        await _auditService.LogAsync("ClubMember", currentPresident.Id, "AcceptSuccession",
+            userId, null, clubId, null,
+            $"User {userId} accepted presidency succession from club {clubId}");
+
+        return ApiResult<bool>.Success(true);
+    }
+
+    public async Task<ApiResult<bool>> RejectSuccessionAsync(Guid clubId, Guid userId)
+    {
+        var currentPresident = await _uow.ClubMembers.FirstOrDefaultAsync(m =>
+            m.ClubId == clubId && m.RoleInClub == ClubRole.President &&
+            m.Status == MembershipStatus.Approved && m.SuccessorUserId == userId);
+
+        if (currentPresident == null)
+            return ApiResult<bool>.Failure("Bạn không được đề cử làm chủ nhiệm CLB này.");
+
+        currentPresident.SuccessorUserId = null;
+
+        var club = await _uow.Clubs.GetByIdAsync(clubId);
+        await _uow.SaveChangesAsync();
+
+        await _notificationService.SendNotificationAsync(
+            currentPresident.UserId,
+            "Từ chối kế nhiệm",
+            $"Người được đề cử đã từ chối làm Chủ nhiệm CLB {club?.Name ?? ""}. Vui lòng chọn người khác.",
+            "SUCCESSION_REJECTED");
+
+        await _auditService.LogAsync("ClubMember", currentPresident.Id, "RejectSuccession",
+            userId, null, clubId, null,
+            $"User {userId} rejected presidency succession from club {clubId}");
+
         return ApiResult<bool>.Success(true);
     }
 
