@@ -48,6 +48,9 @@ public class MembershipController : ControllerBase
     public async Task<IActionResult> GetMembers(Guid clubId,
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
+        if (!await _membershipService.IsClubAdminAsync(clubId, GetUserId()))
+            return Forbid();
+
         var result = await _membershipService.GetMembersAsync(clubId, page, pageSize);
         return Ok(ApiResponse.Ok(result));
     }
@@ -57,6 +60,9 @@ public class MembershipController : ControllerBase
     public async Task<IActionResult> GetPendingRequests(Guid clubId,
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
+        if (!await _membershipService.IsClubAdminAsync(clubId, GetUserId()))
+            return Forbid();
+
         var result = await _membershipService.GetPendingRequestsAsync(clubId, page, pageSize);
         return Ok(ApiResponse.Ok(result));
     }

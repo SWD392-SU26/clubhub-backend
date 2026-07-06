@@ -373,6 +373,12 @@ public class MembershipService : IMembershipService
         return new PagedResult<ClubMemberDto>(items, page, pageSize, total);
     }
 
+    public async Task<bool> IsClubAdminAsync(Guid clubId, Guid userId)
+        => await _uow.ClubMembers.AnyAsync(m =>
+            m.ClubId == clubId && m.UserId == userId &&
+            m.Status == MembershipStatus.Approved &&
+            (m.RoleInClub == ClubRole.ClubAdmin || m.RoleInClub == ClubRole.President));
+
     public async Task<List<MyMembershipDto>> GetMyMembershipsAsync(Guid userId)
     {
         return await _uow.ClubMembers.QueryMyMemberships(userId)
@@ -391,12 +397,6 @@ public class MembershipService : IMembershipService
         ClubRole.Member => "Thành viên",
         _ => role.ToString()
     };
-
-    private async Task<bool> IsClubAdminAsync(Guid clubId, Guid userId)
-        => await _uow.ClubMembers.AnyAsync(m =>
-            m.ClubId == clubId && m.UserId == userId &&
-            m.Status == MembershipStatus.Approved &&
-            (m.RoleInClub == ClubRole.ClubAdmin || m.RoleInClub == ClubRole.President));
 
     private async Task<bool> IsPresidentAsync(Guid clubId, Guid userId)
         => await _uow.ClubMembers.AnyAsync(m =>
