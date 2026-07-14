@@ -8,15 +8,12 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-//using ServiceStack.Text;
 using DotNetEnv;
 
 // Load environment variables from .env file
 Env.Load(Path.Combine(Directory.GetCurrentDirectory(), ".env"));
 
 var builder = WebApplication.CreateBuilder(args);
-
-//builder.Configuration.AddEnvironmentVariables();
 
 // ── Database ──────────────────────────────────────────────────────────────────
 builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlServer(
@@ -70,8 +67,21 @@ builder.Services.AddScoped<IProposalService, ProposalService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
 
+// ── Email Service (SMTP for OTP) ───────────────────────────────────────────────
+builder.Services.AddScoped<IEmailService, SmtpEmailService>();
+
+// ── User Management Service ────────────────────────────────────────────────────
+builder.Services.AddScoped<IUserManagementService, UserManagementService>();
+
+// ── AWS S3 Storage Service ─────────────────────────────────────────────────────
+builder.Services.AddScoped<IStorageService, AwsS3StorageService>();
+
 // ── Controllers ───────────────────────────────────────────────────────────────
-builder.Services.AddControllers()
+builder.Services.AddControllers(opts =>
+{
+    // Allow large file uploads
+    opts.MaxIAsyncEnumerableBufferLimit = 10 * 1024 * 1024;
+})
     .AddJsonOptions(opts =>
         opts.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 
@@ -82,7 +92,6 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "ClubHub API",
-        //Version = "v1",
         Description = "Hệ thống quản lý câu lạc bộ sinh viên"
     });
 
@@ -107,7 +116,6 @@ builder.Services.AddSwaggerGen(c =>
         }
     });
 
-    // Include XML comments (optional)
     var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
     if (File.Exists(xmlPath)) c.IncludeXmlComments(xmlPath);
@@ -134,7 +142,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// ── Auto-migrate on startup (development only) ────────────────────────────────
+// ── Auto-migrate & Seed on startup ────────────────────────────────────────────
 if (app.Environment.IsDevelopment())
 {
     using var scope = app.Services.CreateScope();
@@ -147,14 +155,15 @@ if (app.Environment.IsDevelopment())
     {
         var admin = new ClubHub.API.Entities.User
         {
-            Id         = Guid.NewGuid(),
-            FullName   = "Administrator",
-            Username   = "admin",
-            Email      = adminEmail,
+            Id           = Guid.NewGuid(),
+            FullName     = "Administrator",
+            Username     = "admin",
+            Email        = adminEmail,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword("12345"),
-            SystemRole = ClubHub.API.Enums.SystemRole.UniversityAdmin,
-            IsActive   = true,
-            CreatedAt  = DateTime.UtcNow
+            Role         = ClubHub.API.Enums.Role.UniversityAdmin,
+            Status       = ClubHub.API.Enums.UserStatus.Active,
+            IsEmailVerified = true,
+            CreatedAt    = DateTime.UtcNow
         };
         db.Users.Add(admin);
         await db.SaveChangesAsync();

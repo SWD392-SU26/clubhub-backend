@@ -15,6 +15,17 @@ public class EventController : ControllerBase
 
     public EventController(IEventService eventService) => _eventService = eventService;
 
+    /// <summary>Lấy danh sách sự kiện (public, có thể filter theo CLB)</summary>
+    [HttpGet("api/events")]
+    public async Task<IActionResult> GetAll(
+        [FromQuery] Guid? clubId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10)
+    {
+        var result = await _eventService.GetAllEventsAsync(clubId, page, pageSize);
+        return Ok(ApiResponse.Ok(result));
+    }
+
     /// <summary>Lấy danh sách sự kiện của CLB</summary>
     [HttpGet("api/clubs/{clubId:guid}/events")]
     public async Task<IActionResult> GetClubEvents(Guid clubId,

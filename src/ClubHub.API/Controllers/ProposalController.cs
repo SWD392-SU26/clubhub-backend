@@ -28,7 +28,17 @@ public class ProposalController : ControllerBase
             : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
-    /// <summary>[Student] Nộp lại hồ sơ sau khi được yêu cầu bổ sung</summary>
+    /// <summary>[Student] Sửa hồ sơ (khi còn Pending hoặc NeedsRevision)</summary>
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] SubmitProposalRequest request)
+    {
+        var result = await _proposalService.UpdateAsync(id, request, GetUserId());
+        return result.IsSuccess
+            ? Ok(ApiResponse.Ok(result.Data))
+            : BadRequest(ApiResponse.Fail(result.Error!));
+    }
+
+    /// <summary>[Student] Nộp lại hồ sơ sau khi được yêu cầu bổ sung (lưu revision history)</summary>
     [HttpPut("{id:guid}/resubmit")]
     public async Task<IActionResult> Resubmit(Guid id, [FromBody] SubmitProposalRequest request)
     {
@@ -66,7 +76,7 @@ public class ProposalController : ControllerBase
         return Ok(ApiResponse.Ok(result));
     }
 
-    /// <summary>[University Admin] Duyệt hoặc từ chối hồ sơ</summary>
+    /// <summary>[University Admin] Duyệt hoặc từ chối hồ sơ (khi approve → người nộp lên ClubAdmin)</summary>
     [HttpPut("{id:guid}/review")]
     [Authorize(Roles = "UniversityAdmin")]
     public async Task<IActionResult> Review(Guid id, [FromBody] ReviewProposalRequest request)
