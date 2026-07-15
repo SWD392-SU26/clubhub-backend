@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using ClubHub.API.DTOs.Common;
+using ClubHub.API.DTOs.Point;
 using ClubHub.API.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -31,6 +32,27 @@ public class PointController : ControllerBase
     {
         var result = await _pointService.GetClubLeaderboardAsync(clubId, page, pageSize);
         return Ok(ApiResponse.Ok(result));
+    }
+
+    /// <summary>[Club Admin] Cộng/trừ điểm thủ công theo quy tắc của CLB</summary>
+    [HttpPost("adjust")]
+    public async Task<IActionResult> AdjustPoints(Guid clubId, [FromBody] AdjustPointsRequest request)
+    {
+        var result = await _pointService.AdjustPointsAsync(clubId, GetUserId(), request);
+        return result.IsSuccess
+            ? Ok(ApiResponse.Ok(result.Data!))
+            : BadRequest(ApiResponse.Fail(result.Error!));
+    }
+
+    /// <summary>[Club Admin] Xem lịch sử cộng/trừ điểm của CLB</summary>
+    [HttpGet("history")]
+    public async Task<IActionResult> GetPointHistory(
+        Guid clubId, [FromQuery] PointHistoryFilterRequest filter)
+    {
+        var result = await _pointService.GetPointHistoryAsync(clubId, GetUserId(), filter);
+        return result.IsSuccess
+            ? Ok(ApiResponse.Ok(result.Data!))
+            : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
     private Guid GetUserId() =>

@@ -1,6 +1,7 @@
 using ClubHub.API.DTOs.Common;
 using ClubHub.API.Entities;
 using ClubHub.API.Repositories;
+using ClubHub.API.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace ClubHub.API.Services.Interfaces;
@@ -35,22 +36,57 @@ public class AuditService : IAuditService
         await _uow.SaveChangesAsync();
     }
 
-    public async Task<PagedResult<AuditLogDto>> GetClubAuditLogsAsync(Guid clubId, int page, int pageSize)
+    public async Task<ApiResult<PagedResult<AuditLogDto>>> GetClubAuditLogsAsync(
+        Guid clubId, Guid requesterId, AuditLogFilterRequest filter)
     {
-        var query = _uow.AuditLogs.Query()
-            .Where(a => a.ClubId == clubId)
-            .OrderByDescending(a => a.CreatedAt);
+        var canView = await _uow.ClubMembers.AnyAsync(m =>
+            m.ClubId == clubId && m.UserId == requesterId &&
+            m.Status == MembershipStatus.Approved &&
+            (m.RoleInClub == ClubRole.ClubAdmin || m.RoleInClub == ClubRole.President));
+
+        if (!canView)
+            return ApiResult<PagedResult<AuditLogDto>>.Failure(
+                "Bạn không có quyền xem lịch sử hoạt động CLB này.");
+
+        var logs = await QueryAuditLogsAsync(filter, clubId);
+        return ApiResult<PagedResult<AuditLogDto>>.Success(logs);
+    }
+
+    public Task<PagedResult<AuditLogDto>> GetAllAuditLogsAsync(AuditLogFilterRequest filter)
+        => QueryAuditLogsAsync(filter, null);
+
+    private async Task<PagedResult<AuditLogDto>> QueryAuditLogsAsync(
+        AuditLogFilterRequest filter, Guid? forcedClubId)
+    {
+        var query = _uow.AuditLogs.Query().AsNoTracking();
+
+        if (forcedClubId.HasValue)
+            query = query.Where(a => a.ClubId == forcedClubId.Value);
+        else if (filter.ClubId.HasValue)
+            query = query.Where(a => a.ClubId == filter.ClubId.Value);
+        if (!string.IsNullOrWhiteSpace(filter.EntityType))
+            query = query.Where(a => a.EntityType == filter.EntityType);
+        if (!string.IsNullOrWhiteSpace(filter.Action))
+            query = query.Where(a => a.Action == filter.Action);
+        if (filter.PerformedBy.HasValue)
+            query = query.Where(a => a.PerformedBy == filter.PerformedBy.Value);
+        if (filter.From.HasValue)
+            query = query.Where(a => a.CreatedAt >= filter.From.Value);
+        if (filter.To.HasValue)
+            query = query.Where(a => a.CreatedAt <= filter.To.Value);
 
         var total = await query.CountAsync();
         var items = await query
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
+            .OrderByDescending(a => a.CreatedAt)
+            .Skip((filter.Page - 1) * filter.PageSize)
+            .Take(filter.PageSize)
             .Select(a => new AuditLogDto(
                 a.Id, a.EntityType, a.EntityId, a.Action,
-                a.PerformedByName, a.Description, a.ClubId, a.CreatedAt))
+                a.PerformedBy, a.PerformedByName, a.Details,
+                a.Description, a.ClubId, a.CreatedAt))
             .ToListAsync();
 
-        return new PagedResult<AuditLogDto>(items, page, pageSize, total);
+        return new PagedResult<AuditLogDto>(items, filter.Page, filter.PageSize, total);
     }
 
     public async Task<PagedResult<AuditLogDto>> GetEntityAuditLogsAsync(string entityType, Guid entityId, int page, int pageSize)
@@ -65,7 +101,8 @@ public class AuditService : IAuditService
             .Take(pageSize)
             .Select(a => new AuditLogDto(
                 a.Id, a.EntityType, a.EntityId, a.Action,
-                a.PerformedByName, a.Description, a.ClubId, a.CreatedAt))
+                a.PerformedBy, a.PerformedByName, a.Details,
+                a.Description, a.ClubId, a.CreatedAt))
             .ToListAsync();
 
         return new PagedResult<AuditLogDto>(items, page, pageSize, total);

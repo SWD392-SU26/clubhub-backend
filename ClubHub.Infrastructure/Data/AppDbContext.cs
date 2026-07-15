@@ -150,6 +150,11 @@ public class AppDbContext : DbContext
              .WithMany(c => c.PointTransactions)
              .HasForeignKey(pt => pt.ClubId)
              .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(pt => pt.AdjustedByUser)
+             .WithMany()
+             .HasForeignKey(pt => pt.AdjustedByUserId)
+             .OnDelete(DeleteBehavior.Restrict);
         });
 
         // ── Notification ─────────────────────────────────────────────────────

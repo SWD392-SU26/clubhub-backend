@@ -2,7 +2,7 @@
 
 public class PhoneValidator
 {
-    public bool IsValid(string phone)
+    public bool IsValid(string? phone)
     {
         if (string.IsNullOrWhiteSpace(phone))
             return false;

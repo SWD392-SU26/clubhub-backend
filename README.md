@@ -134,6 +134,8 @@ Base route: `/api/clubs/{clubId}/points`
 |--------|----------|-------|
 | GET | `/me` | Xem điểm thi đua của mình trong CLB |
 | GET | `/leaderboard` | Bảng xếp hạng điểm thi đua |
+| POST | `/adjust` | Club Admin/President cộng hoặc trừ điểm thủ công |
+| GET | `/history` | Club Admin/President xem lịch sử điểm |
 
 ### Proposals
 
@@ -160,6 +162,21 @@ Base route: `/api/admin`
 | PUT | `/clubs/{clubId}/lock` | Khóa CLB |
 | DELETE | `/clubs/{clubId}` | Xóa mềm CLB |
 | DELETE | `/clubs/{clubId}/hard` | Xóa cứng CLB |
+| PUT | `/clubs/{clubId}/transfer-admin` | Chuyển quyền chủ nhiệm CLB |
+| GET | `/users` | Danh sách và tìm kiếm người dùng |
+| PUT | `/users/{id}/lock` | Khóa hoặc mở khóa người dùng |
+| PUT | `/users/{id}/role` | Thay đổi system role |
+| GET | `/audit-logs` | Xem audit log toàn hệ thống |
+
+### Audit logs
+
+| Method | Endpoint | Mô tả |
+|--------|----------|-------|
+| GET | `/api/clubs/{clubId}/audit-logs` | Club Admin/President xem lịch sử CLB |
+| GET | `/api/admin/audit-logs` | University Admin xem lịch sử toàn hệ thống |
+
+`GET /api/my-events` trả trực tiếp `clubName`, `location`, `startTime`,
+`endTime`, `status`, `canFeedback`, `hasFeedback` và `canCancel`.
 
 ## Phân quyền
 
@@ -177,3 +194,14 @@ Base route: `/api/admin`
 - `Program.cs` tự động migrate database khi chạy ở Development.
 - Tài khoản admin seed sẵn trong Development là `admin@gmail.com` với mật khẩu `12345`.
 - API dùng CORS mở toàn bộ trong cấu hình hiện tại.
+
+## Cấu hình email đặt lại mật khẩu
+
+Không commit mật khẩu SMTP. Cấu hình bằng biến môi trường hoặc `.env`:
+
+```env
+Email__Smtp__Username=clubhub@example.com
+Email__Smtp__Password=SMTP_APP_PASSWORD
+Email__Smtp__FromEmail=clubhub@example.com
+Email__ResetPasswordUrl=https://clubhub.example.com/reset-password
+```

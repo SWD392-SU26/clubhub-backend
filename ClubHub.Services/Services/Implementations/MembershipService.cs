@@ -176,6 +176,14 @@ public class MembershipService : IMembershipService
         if (membership == null || membership.Status != MembershipStatus.Approved)
             return ApiResult<bool>.Failure("Thành viên không tồn tại.");
 
+        if (req.NewRole != ClubRole.Member)
+        {
+            var targetUser = await _uow.Users.GetByIdAsync(req.UserId);
+            if (targetUser == null || !targetUser.IsActive)
+                return ApiResult<bool>.Failure(
+                    "Không thể gán vai trò quản lý cho tài khoản đang bị khóa.");
+        }
+
         var club = await _uow.Clubs.GetByIdAsync(clubId);
 
         // If assigning to President, demote the current President first
@@ -224,6 +232,9 @@ public class MembershipService : IMembershipService
         var newAdmin = await _uow.ClubMembers.GetByUserAndClubAsync(clubId, req.NewAdminUserId);
         if (newAdmin == null || newAdmin.Status != MembershipStatus.Approved)
             return ApiResult<bool>.Failure("Người nhận quyền không phải thành viên CLB.");
+        var newAdminUser = await _uow.Users.GetByIdAsync(req.NewAdminUserId);
+        if (newAdminUser == null || !newAdminUser.IsActive)
+            return ApiResult<bool>.Failure("Không thể chuyển quyền cho tài khoản đang bị khóa.");
 
         currentAdmin.RoleInClub = ClubRole.Member;
         newAdmin.RoleInClub = ClubRole.President;
@@ -240,6 +251,52 @@ public class MembershipService : IMembershipService
         await _auditService.LogAsync("ClubMember", currentAdmin.Id, "TransferAdmin",
             currentAdminId, null, clubId, null,
             $"User {currentAdminId} transferred presidency to user {req.NewAdminUserId}");
+
+        return ApiResult<bool>.Success(true);
+    }
+
+    public async Task<ApiResult<bool>> TransferAdminByUniversityAdminAsync(
+        Guid clubId, TransferAdminRequest req, Guid universityAdminId)
+    {
+        var club = await _uow.Clubs.GetByIdAsync(clubId);
+        if (club == null || club.Status is ClubStatus.Deleted or ClubStatus.Dissolved)
+            return ApiResult<bool>.Failure("CLB không tồn tại hoặc đã giải tán.");
+
+        var newAdmin = await _uow.ClubMembers.GetByUserAndClubAsync(clubId, req.NewAdminUserId);
+        if (newAdmin == null || newAdmin.Status != MembershipStatus.Approved)
+            return ApiResult<bool>.Failure(
+                "Người nhận quyền không phải thành viên đang hoạt động của CLB.");
+
+        var newAdminUser = await _uow.Users.GetByIdAsync(req.NewAdminUserId);
+        if (newAdminUser == null || !newAdminUser.IsActive)
+            return ApiResult<bool>.Failure("Không thể chuyển quyền cho tài khoản đang bị khóa.");
+
+        var currentPresidents = await _uow.ClubMembers.Query()
+            .Where(m => m.ClubId == clubId && m.Status == MembershipStatus.Approved &&
+                        m.RoleInClub == ClubRole.President && m.UserId != req.NewAdminUserId)
+            .ToListAsync();
+
+        foreach (var president in currentPresidents)
+            president.RoleInClub = ClubRole.Member;
+
+        newAdmin.RoleInClub = ClubRole.President;
+        await _uow.SaveChangesAsync();
+
+        await _notificationService.SendNotificationAsync(
+            req.NewAdminUserId,
+            "Chuyển quyền chủ nhiệm",
+            $"University Admin đã bổ nhiệm bạn làm Chủ nhiệm CLB {club.Name}.",
+            "TRANSFER_ADMIN");
+
+        await _auditService.LogAsync(
+            "ClubMember",
+            newAdmin.Id,
+            "TransferAdminByUniversityAdmin",
+            universityAdminId,
+            null,
+            clubId,
+            $"{{\"newAdminUserId\":\"{req.NewAdminUserId}\"}}",
+            $"University Admin chuyển quyền chủ nhiệm CLB {club.Name} cho {newAdminUser.FullName}");
 
         return ApiResult<bool>.Success(true);
     }

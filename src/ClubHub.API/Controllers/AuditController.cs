@@ -17,10 +17,21 @@ public class AuditController : ControllerBase
     /// <summary>[Club Admin] Xem lịch sử hoạt động của CLB</summary>
     [HttpGet("api/clubs/{clubId:guid}/audit-logs")]
     [Authorize]
-    public async Task<IActionResult> GetClubAuditLogs(Guid clubId,
-        [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    public async Task<IActionResult> GetClubAuditLogs(
+        Guid clubId, [FromQuery] AuditLogFilterRequest filter)
     {
-        var result = await _auditService.GetClubAuditLogsAsync(clubId, page, pageSize);
+        var result = await _auditService.GetClubAuditLogsAsync(clubId, GetUserId(), filter);
+        return result.IsSuccess
+            ? Ok(ApiResponse.Ok(result.Data!))
+            : StatusCode(StatusCodes.Status403Forbidden, ApiResponse.Fail(result.Error!));
+    }
+
+    /// <summary>[University Admin] Xem lịch sử hoạt động toàn hệ thống</summary>
+    [HttpGet("api/admin/audit-logs")]
+    [Authorize(Roles = "UniversityAdmin")]
+    public async Task<IActionResult> GetAllAuditLogs([FromQuery] AuditLogFilterRequest filter)
+    {
+        var result = await _auditService.GetAllAuditLogsAsync(filter);
         return Ok(ApiResponse.Ok(result));
     }
 

@@ -211,12 +211,28 @@ public class EventService : IEventService
         return ApiResult<bool>.Success(true);
     }
 
-    public async Task<List<EventRegistrationDto>> GetMyRegistrationsAsync(Guid userId)
+    public async Task<List<MyEventDto>> GetMyRegistrationsAsync(Guid userId)
     {
+        var now = DateTime.UtcNow;
         return await _uow.EventRegistrations.QueryMyRegistrations(userId)
-            .Select(r => new EventRegistrationDto(
-                r.Id, r.EventId, r.Event.Name,
-                r.IsCheckedIn, r.CheckInTime, r.RegisteredAt))
+            .OrderByDescending(r => r.Event.StartTime)
+            .Select(r => new MyEventDto(
+                r.Id,
+                r.EventId,
+                r.Event.ClubId,
+                r.Event.Club.Name,
+                r.Event.Name,
+                r.Event.Location,
+                r.Event.StartTime,
+                r.Event.EndTime,
+                r.Event.Status.ToString(),
+                r.IsCheckedIn,
+                r.CheckInTime,
+                r.RegisteredAt,
+                r.Event.Status == EventStatus.Completed && r.IsCheckedIn &&
+                    !r.Event.Feedbacks.Any(f => f.UserId == userId),
+                r.Event.Feedbacks.Any(f => f.UserId == userId),
+                r.Event.Status == EventStatus.Published && r.Event.StartTime > now))
             .ToListAsync();
     }
 

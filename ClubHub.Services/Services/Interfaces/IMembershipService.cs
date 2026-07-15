@@ -15,6 +15,8 @@ public interface IMembershipService
     Task<ApiResult<bool>> RemoveMemberAsync(Guid clubId, Guid memberId, Guid requesterId);
     Task<ApiResult<bool>> AssignRoleAsync(Guid clubId, AssignRoleRequest request, Guid requesterId);
     Task<ApiResult<bool>> TransferAdminAsync(Guid clubId, TransferAdminRequest request, Guid currentAdminId);
+    Task<ApiResult<bool>> TransferAdminByUniversityAdminAsync(
+        Guid clubId, TransferAdminRequest request, Guid universityAdminId);
     Task<ApiResult<bool>> NominateSuccessorAsync(Guid clubId, Guid successorUserId, Guid currentAdminId);
     Task<ApiResult<bool>> AcceptSuccessionAsync(Guid clubId, Guid userId);
     Task<ApiResult<bool>> RejectSuccessionAsync(Guid clubId, Guid userId);
