@@ -14,6 +14,6 @@ public interface IEventService
     Task<ApiResult<bool>> RegisterForEventAsync(Guid eventId, Guid userId);
     Task<ApiResult<bool>> CancelRegistrationAsync(Guid eventId, Guid userId);
     Task<ApiResult<bool>> CheckInAsync(Guid eventId, Guid userId, Guid requesterId);
-    Task<List<EventRegistrationDto>> GetMyRegistrationsAsync(Guid userId);
+    Task<List<MyEventDto>> GetMyRegistrationsAsync(Guid userId);
     Task<PagedResult<EventRegistrationDto>> GetEventRegistrationsAsync(Guid eventId, int page, int pageSize);
 }

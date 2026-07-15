@@ -10,4 +10,8 @@ public interface IPointService
     Task<MyPointSummaryDto?> GetMyPointsInClubAsync(Guid userId, Guid clubId);
     Task<PagedResult<MemberPointDto>> GetClubLeaderboardAsync(Guid clubId, int page, int pageSize);
     Task AddPointsAsync(Guid userId, Guid clubId, int points, PointType type, string? note, Guid? referenceId = null);
+    Task<ApiResult<PointHistoryDto>> AdjustPointsAsync(
+        Guid clubId, Guid requesterId, AdjustPointsRequest request);
+    Task<ApiResult<PagedResult<PointHistoryDto>>> GetPointHistoryAsync(
+        Guid clubId, Guid requesterId, PointHistoryFilterRequest filter);
 }

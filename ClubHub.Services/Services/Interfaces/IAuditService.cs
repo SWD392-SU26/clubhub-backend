@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using ClubHub.API.DTOs.Common;
 using ClubHub.API.Entities;
 
@@ -8,8 +9,26 @@ public interface IAuditService
     Task LogAsync(string entityType, Guid entityId, string action, Guid? performedBy,
         string? performedByName, Guid? clubId, string? details = null, string? description = null);
 
-    Task<PagedResult<AuditLogDto>> GetClubAuditLogsAsync(Guid clubId, int page, int pageSize);
+    Task<ApiResult<PagedResult<AuditLogDto>>> GetClubAuditLogsAsync(
+        Guid clubId, Guid requesterId, AuditLogFilterRequest filter);
+    Task<PagedResult<AuditLogDto>> GetAllAuditLogsAsync(AuditLogFilterRequest filter);
     Task<PagedResult<AuditLogDto>> GetEntityAuditLogsAsync(string entityType, Guid entityId, int page, int pageSize);
+}
+
+public record AuditLogFilterRequest
+{
+    public Guid? ClubId { get; init; }
+    public string? EntityType { get; init; }
+    public string? Action { get; init; }
+    public Guid? PerformedBy { get; init; }
+    public DateTime? From { get; init; }
+    public DateTime? To { get; init; }
+
+    [Range(1, int.MaxValue)]
+    public int Page { get; init; } = 1;
+
+    [Range(1, 100)]
+    public int PageSize { get; init; } = 20;
 }
 
 public record AuditLogDto(
@@ -17,7 +36,9 @@ public record AuditLogDto(
     string EntityType,
     Guid EntityId,
     string Action,
+    Guid? PerformedBy,
     string? PerformedByName,
+    string? Details,
     string? Description,
     Guid? ClubId,
     DateTime CreatedAt
