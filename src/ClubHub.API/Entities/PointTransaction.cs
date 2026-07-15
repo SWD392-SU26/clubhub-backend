@@ -19,10 +19,12 @@ public class PointTransaction
 
     // Reference to Event / EventRegistration if applicable
     public Guid? ReferenceId { get; set; }
+    public Guid? AdjustedByUserId { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     // Navigation
     public User User { get; set; } = null!;
     public Club Club { get; set; } = null!;
+    public User? AdjustedByUser { get; set; }
 }

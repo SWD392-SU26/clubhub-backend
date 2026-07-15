@@ -14,6 +14,19 @@ Mở `src/ClubHub.API/appsettings.json` và sửa:
 }
 ```
 
+### Cấu hình email đặt lại mật khẩu
+
+Thiết lập `Email:ResetPasswordUrl` và thông tin `Email:Smtp` trong
+`appsettings.json`. Không commit mật khẩu SMTP; ở môi trường thật nên dùng biến
+môi trường, ví dụ:
+
+```powershell
+$env:Email__Smtp__Username="clubhub@example.com"
+$env:Email__Smtp__Password="SMTP_APP_PASSWORD"
+$env:Email__Smtp__FromEmail="clubhub@example.com"
+$env:Email__ResetPasswordUrl="https://clubhub.example.com/reset-password"
+```
+
 ### 2. Chạy Migration (tạo database)
 
 ```bash
@@ -180,3 +193,21 @@ src/ClubHub.API/
 | `ClubRole.VicePresident` | Phó chủ nhiệm |
 | `ClubRole.President` | Chủ nhiệm |
 | `ClubRole.ClubAdmin` | Admin CLB |
+
+---
+
+## Endpoint quản trị bổ sung
+
+| Method | Endpoint | Quyền |
+|--------|----------|-------|
+| GET | `/api/clubs/{clubId}/audit-logs` | Club Admin / President |
+| GET | `/api/admin/audit-logs` | University Admin |
+| POST | `/api/clubs/{clubId}/points/adjust` | Club Admin / President |
+| GET | `/api/clubs/{clubId}/points/history` | Club Admin / President |
+| PUT | `/api/admin/clubs/{clubId}/transfer-admin` | University Admin |
+| GET | `/api/admin/users` | University Admin |
+| PUT | `/api/admin/users/{id}/lock` | University Admin |
+| PUT | `/api/admin/users/{id}/role` | University Admin |
+
+`GET /api/my-events` trả thêm `clubName`, `location`, `startTime`, `endTime`,
+`status`, `canFeedback`, `hasFeedback` và `canCancel`.

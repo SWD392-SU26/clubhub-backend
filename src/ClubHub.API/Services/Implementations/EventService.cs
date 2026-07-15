@@ -12,12 +12,18 @@ public class EventService : IEventService
     private readonly AppDbContext _db;
     private readonly IPointService _pointService;
     private readonly INotificationService _notificationService;
+    private readonly IAuditLogService _auditLogService;
 
-    public EventService(AppDbContext db, IPointService pointService, INotificationService notificationService)
+    public EventService(
+        AppDbContext db,
+        IPointService pointService,
+        INotificationService notificationService,
+        IAuditLogService auditLogService)
     {
         _db = db;
         _pointService = pointService;
         _notificationService = notificationService;
+        _auditLogService = auditLogService;
     }
 
     public async Task<PagedResult<EventDto>> GetClubEventsAsync(Guid clubId, int page, int pageSize)
@@ -73,6 +79,9 @@ public class EventService : IEventService
 
         _db.Events.Add(ev);
         await _db.SaveChangesAsync();
+        await _auditLogService.LogAsync(
+            createdBy, "EVENT_CREATED", nameof(Event), ev.Id, clubId,
+            details: ev.Name);
 
         // Thông báo cho tất cả thành viên CLB (trừ người tạo)
         var memberIds = await _db.ClubMembers
@@ -109,6 +118,9 @@ public class EventService : IEventService
         ev.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
+        await _auditLogService.LogAsync(
+            requesterId, "EVENT_UPDATED", nameof(Event), ev.Id, ev.ClubId,
+            details: ev.Name);
         var result = await GetEventByIdAsync(eventId);
         return ApiResult<EventDto>.Success(result!);
     }
@@ -123,6 +135,9 @@ public class EventService : IEventService
 
         ev.Status = EventStatus.Cancelled;
         await _db.SaveChangesAsync();
+        await _auditLogService.LogAsync(
+            requesterId, "EVENT_CANCELLED", nameof(Event), ev.Id, ev.ClubId,
+            details: ev.Name);
 
         // Thông báo cho những người đã đăng ký sự kiện
         var registrantIds = await _db.EventRegistrations
@@ -152,8 +167,12 @@ public class EventService : IEventService
         if (ev.Registrations.Any(r => r.UserId == userId && !r.IsCancelled))
             return ApiResult<bool>.Failure("Bạn đã đăng ký sự kiện này rồi.");
 
-        _db.EventRegistrations.Add(new EventRegistration { EventId = eventId, UserId = userId });
+        var registration = new EventRegistration { EventId = eventId, UserId = userId };
+        _db.EventRegistrations.Add(registration);
         await _db.SaveChangesAsync();
+        await _auditLogService.LogAsync(
+            userId, "EVENT_REGISTERED", nameof(EventRegistration), registration.Id,
+            ev.ClubId, userId, ev.Name);
         return ApiResult<bool>.Success(true);
     }
 
@@ -167,6 +186,13 @@ public class EventService : IEventService
         reg.IsCancelled = true;
         reg.CancelledAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+        var clubId = await _db.Events
+            .Where(e => e.Id == eventId)
+            .Select(e => e.ClubId)
+            .FirstAsync();
+        await _auditLogService.LogAsync(
+            userId, "EVENT_REGISTRATION_CANCELLED", nameof(EventRegistration), reg.Id,
+            clubId, userId);
         return ApiResult<bool>.Success(true);
     }
 
@@ -192,18 +218,38 @@ public class EventService : IEventService
         await _pointService.AddPointsAsync(userId, ev.ClubId, 10, PointType.CheckIn,
             $"Check-in sự kiện: {ev.Name}", eventId);
 
+        await _auditLogService.LogAsync(
+            requesterId, "EVENT_CHECKED_IN", nameof(EventRegistration), reg.Id,
+            ev.ClubId, userId, ev.Name);
+
         return ApiResult<bool>.Success(true);
     }
 
-    public async Task<List<EventRegistrationDto>> GetMyRegistrationsAsync(Guid userId)
+    public async Task<List<MyEventDto>> GetMyRegistrationsAsync(Guid userId)
     {
+        var now = DateTime.UtcNow;
         return await _db.EventRegistrations
             .Include(r => r.Event)
+                .ThenInclude(e => e.Club)
             .Where(r => r.UserId == userId && !r.IsCancelled)
-            .OrderByDescending(r => r.RegisteredAt)
-            .Select(r => new EventRegistrationDto(
-                r.Id, r.EventId, r.Event.Name,
-                r.IsCheckedIn, r.CheckInTime, r.RegisteredAt))
+            .OrderByDescending(r => r.Event.StartTime)
+            .Select(r => new MyEventDto(
+                r.Id,
+                r.EventId,
+                r.Event.ClubId,
+                r.Event.Club.Name,
+                r.Event.Name,
+                r.Event.Location,
+                r.Event.StartTime,
+                r.Event.EndTime,
+                r.Event.Status.ToString(),
+                r.IsCheckedIn,
+                r.CheckInTime,
+                r.RegisteredAt,
+                r.Event.Status == EventStatus.Completed && r.IsCheckedIn &&
+                    !r.Event.Feedbacks.Any(f => f.UserId == userId),
+                r.Event.Feedbacks.Any(f => f.UserId == userId),
+                r.Event.Status == EventStatus.Published && r.Event.StartTime > now))
             .ToListAsync();
     }
 

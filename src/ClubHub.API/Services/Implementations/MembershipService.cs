@@ -11,11 +11,16 @@ public class MembershipService : IMembershipService
 {
     private readonly AppDbContext _db;
     private readonly INotificationService _notificationService;
+    private readonly IAuditLogService _auditLogService;
 
-    public MembershipService(AppDbContext db, INotificationService notificationService)
+    public MembershipService(
+        AppDbContext db,
+        INotificationService notificationService,
+        IAuditLogService auditLogService)
     {
         _db = db;
         _notificationService = notificationService;
+        _auditLogService = auditLogService;
     }
 
     public async Task<ApiResult<bool>> RequestJoinAsync(Guid clubId, Guid userId, JoinClubRequest req)
@@ -45,6 +50,9 @@ public class MembershipService : IMembershipService
 
         _db.ClubMembers.Add(membership);
         await _db.SaveChangesAsync();
+        await _auditLogService.LogAsync(
+            userId, "MEMBERSHIP_REQUESTED", nameof(ClubMember), membership.Id,
+            clubId, userId, req.JoinReason);
         return ApiResult<bool>.Success(true);
     }
 
@@ -68,6 +76,15 @@ public class MembershipService : IMembershipService
             membership.RejectionReason = req.RejectionReason;
 
         await _db.SaveChangesAsync();
+
+        await _auditLogService.LogAsync(
+            reviewerId,
+            req.IsApproved ? "MEMBERSHIP_APPROVED" : "MEMBERSHIP_REJECTED",
+            nameof(ClubMember),
+            membership.Id,
+            membership.ClubId,
+            membership.UserId,
+            req.IsApproved ? null : req.RejectionReason);
 
         var clubName = await _db.Clubs
             .Where(c => c.Id == membership.ClubId)
@@ -105,6 +122,9 @@ public class MembershipService : IMembershipService
         membership.Status = MembershipStatus.Left;
         membership.LeftAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+        await _auditLogService.LogAsync(
+            userId, "MEMBER_LEFT", nameof(ClubMember), membership.Id,
+            clubId, userId);
         return ApiResult<bool>.Success(true);
     }
 
@@ -123,6 +143,9 @@ public class MembershipService : IMembershipService
         membership.Status = MembershipStatus.Left;
         membership.LeftAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+        await _auditLogService.LogAsync(
+            requesterId, "MEMBER_REMOVED", nameof(ClubMember), membership.Id,
+            clubId, membership.UserId);
         return ApiResult<bool>.Success(true);
     }
 
@@ -136,8 +159,12 @@ public class MembershipService : IMembershipService
 
         if (membership == null) return ApiResult<bool>.Failure("Thành viên không tồn tại.");
 
+        var previousRole = membership.RoleInClub;
         membership.RoleInClub = req.NewRole;
         await _db.SaveChangesAsync();
+        await _auditLogService.LogAsync(
+            requesterId, "CLUB_ROLE_CHANGED", nameof(ClubMember), membership.Id,
+            clubId, membership.UserId, $"{previousRole} -> {req.NewRole}");
         return ApiResult<bool>.Success(true);
     }
 
@@ -151,7 +178,8 @@ public class MembershipService : IMembershipService
             return ApiResult<bool>.Failure("Bạn không phải chủ nhiệm CLB.");
 
         var newAdmin = await _db.ClubMembers.FirstOrDefaultAsync(m =>
-            m.ClubId == clubId && m.UserId == req.NewAdminUserId && m.Status == MembershipStatus.Approved);
+            m.ClubId == clubId && m.UserId == req.NewAdminUserId &&
+            m.Status == MembershipStatus.Approved && m.User.IsActive);
 
         if (newAdmin == null)
             return ApiResult<bool>.Failure("Người nhận quyền không phải thành viên CLB.");
@@ -159,6 +187,53 @@ public class MembershipService : IMembershipService
         currentAdmin.RoleInClub = ClubRole.Member;
         newAdmin.RoleInClub = ClubRole.President;
         await _db.SaveChangesAsync();
+        await _auditLogService.LogAsync(
+            currentAdminId,
+            "CLUB_ADMIN_TRANSFERRED",
+            nameof(ClubMember),
+            newAdmin.Id,
+            clubId,
+            newAdmin.UserId,
+            $"Transferred from {currentAdminId} to {newAdmin.UserId}");
+        return ApiResult<bool>.Success(true);
+    }
+
+    public async Task<ApiResult<bool>> TransferAdminByUniversityAdminAsync(
+        Guid clubId, TransferAdminRequest req, Guid universityAdminId)
+    {
+        var clubExists = await _db.Clubs.AnyAsync(c =>
+            c.Id == clubId && c.Status != ClubStatus.Deleted);
+        if (!clubExists)
+            return ApiResult<bool>.Failure("CLB không tồn tại.");
+
+        var newAdmin = await _db.ClubMembers.FirstOrDefaultAsync(m =>
+            m.ClubId == clubId && m.UserId == req.NewAdminUserId &&
+            m.Status == MembershipStatus.Approved && m.User.IsActive);
+        if (newAdmin == null)
+            return ApiResult<bool>.Failure("Người nhận quyền không phải thành viên đang hoạt động của CLB.");
+
+        var currentPresidents = await _db.ClubMembers
+            .Where(m => m.ClubId == clubId && m.Status == MembershipStatus.Approved &&
+                        m.RoleInClub == ClubRole.President && m.UserId != req.NewAdminUserId)
+            .ToListAsync();
+
+        foreach (var president in currentPresidents)
+            president.RoleInClub = ClubRole.Member;
+
+        newAdmin.RoleInClub = ClubRole.President;
+        await _db.SaveChangesAsync();
+
+        await _auditLogService.LogAsync(
+            universityAdminId,
+            "CLUB_ADMIN_TRANSFERRED_BY_UNIVERSITY_ADMIN",
+            nameof(ClubMember),
+            newAdmin.Id,
+            clubId,
+            newAdmin.UserId,
+            currentPresidents.Count == 0
+                ? $"Assigned {newAdmin.UserId} as President"
+                : $"Replaced {string.Join(", ", currentPresidents.Select(m => m.UserId))} with {newAdmin.UserId}");
+
         return ApiResult<bool>.Success(true);
     }
 

@@ -1,4 +1,5 @@
 using System.Text;
+using System.Security.Claims;
 using ClubHub.API.Data;
 using ClubHub.API.Middlewares;
 using ClubHub.API.Services.Implementations;
@@ -38,6 +39,30 @@ builder.Services.AddAuthentication(options =>
         IssuerSigningKey = new SymmetricSecurityKey(key),
         ClockSkew = TimeSpan.Zero
     };
+    options.Events = new JwtBearerEvents
+    {
+        OnTokenValidated = async context =>
+        {
+            var userIdValue = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
+            var tokenRole = context.Principal?.FindFirstValue(ClaimTypes.Role);
+            if (!Guid.TryParse(userIdValue, out var userId))
+            {
+                context.Fail("Invalid user identifier.");
+                return;
+            }
+
+            var db = context.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
+            var userState = await db.Users
+                .AsNoTracking()
+                .Where(u => u.Id == userId)
+                .Select(u => new { u.IsActive, u.SystemRole })
+                .FirstOrDefaultAsync();
+
+            if (userState == null || !userState.IsActive ||
+                userState.SystemRole.ToString() != tokenRole)
+                context.Fail("User is inactive or token role is no longer valid.");
+        }
+    };
 });
 
 builder.Services.AddAuthorization();
@@ -51,6 +76,7 @@ builder.Services.AddCors(options =>
 
 // ── Services ──────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IEmailService, SmtpEmailService>();
 builder.Services.AddScoped<IClubService, ClubService>();
 builder.Services.AddScoped<IMembershipService, MembershipService>();
 builder.Services.AddScoped<IEventService, EventService>();
@@ -58,6 +84,8 @@ builder.Services.AddScoped<IFeedbackService, FeedbackService>();
 builder.Services.AddScoped<IPointService, PointService>();
 builder.Services.AddScoped<IProposalService, ProposalService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+builder.Services.AddScoped<IAdminUserService, AdminUserService>();
 
 // ── Controllers ───────────────────────────────────────────────────────────────
 builder.Services.AddControllers()

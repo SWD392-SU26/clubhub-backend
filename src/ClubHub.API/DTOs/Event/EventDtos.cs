@@ -49,3 +49,21 @@ public record EventRegistrationDto(
     DateTime? CheckInTime,
     DateTime RegisteredAt
 );
+
+public record MyEventDto(
+    Guid RegistrationId,
+    Guid EventId,
+    Guid ClubId,
+    string ClubName,
+    string EventName,
+    string? Location,
+    DateTime StartTime,
+    DateTime EndTime,
+    string Status,
+    bool IsCheckedIn,
+    DateTime? CheckInTime,
+    DateTime RegisteredAt,
+    bool CanFeedback,
+    bool HasFeedback,
+    bool CanCancel
+);

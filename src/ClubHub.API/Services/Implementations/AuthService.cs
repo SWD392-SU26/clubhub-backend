@@ -15,11 +15,19 @@ public class AuthService : IAuthService
 {
     private readonly AppDbContext _db;
     private readonly IConfiguration _config;
+    private readonly IEmailService _emailService;
+    private readonly ILogger<AuthService> _logger;
 
-    public AuthService(AppDbContext db, IConfiguration config)
+    public AuthService(
+        AppDbContext db,
+        IConfiguration config,
+        IEmailService emailService,
+        ILogger<AuthService> logger)
     {
         _db = db;
         _config = config;
+        _emailService = emailService;
+        _logger = logger;
     }
 
     public async Task<ApiResult<LoginResponse>> RegisterAsync(RegisterRequest req)
@@ -91,18 +99,29 @@ public class AuthService : IAuthService
         if (user == null)
             return ApiResult<bool>.Success(true); // Don't reveal whether email exists
 
-        user.PasswordResetToken = GenerateSecureToken();
+        var resetToken = GenerateSecureToken();
+        user.PasswordResetToken = HashToken(resetToken);
         user.PasswordResetTokenExpiry = DateTime.UtcNow.AddHours(1);
         await _db.SaveChangesAsync();
 
-        // TODO: Send email with reset token
+        try
+        {
+            await _emailService.SendPasswordResetAsync(user.Email, user.FullName, resetToken);
+        }
+        catch (Exception ex)
+        {
+            // Keep the public response indistinguishable from an unknown email response.
+            _logger.LogError(ex, "Failed to send password reset email for user {UserId}", user.Id);
+        }
+
         return ApiResult<bool>.Success(true);
     }
 
     public async Task<ApiResult<bool>> ResetPasswordAsync(ResetPasswordRequest req)
     {
+        var tokenHash = HashToken(req.Token);
         var user = await _db.Users.FirstOrDefaultAsync(u =>
-            u.PasswordResetToken == req.Token && u.PasswordResetTokenExpiry > DateTime.UtcNow);
+            u.PasswordResetToken == tokenHash && u.PasswordResetTokenExpiry > DateTime.UtcNow);
 
         if (user == null)
             return ApiResult<bool>.Failure("Token không hợp lệ hoặc đã hết hạn.");
@@ -110,6 +129,9 @@ public class AuthService : IAuthService
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(req.NewPassword);
         user.PasswordResetToken = null;
         user.PasswordResetTokenExpiry = null;
+        user.RefreshToken = null;
+        user.RefreshTokenExpiry = null;
+        user.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
         return ApiResult<bool>.Success(true);
     }
@@ -184,7 +206,10 @@ public class AuthService : IAuthService
     }
 
     private static string GenerateSecureToken()
-        => Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
+        => Convert.ToBase64String(RandomNumberGenerator.GetBytes(48));
+
+    private static string HashToken(string token)
+        => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 
     private static UserProfileDto MapToProfile(User u) => new(
         u.Id, u.FullName, u.Username, u.Email,

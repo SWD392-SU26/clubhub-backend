@@ -13,6 +13,8 @@ public interface IMembershipService
     Task<ApiResult<bool>> RemoveMemberAsync(Guid clubId, Guid memberId, Guid requesterId);
     Task<ApiResult<bool>> AssignRoleAsync(Guid clubId, AssignRoleRequest request, Guid requesterId);
     Task<ApiResult<bool>> TransferAdminAsync(Guid clubId, TransferAdminRequest request, Guid currentAdminId);
+    Task<ApiResult<bool>> TransferAdminByUniversityAdminAsync(
+        Guid clubId, TransferAdminRequest request, Guid universityAdminId);
     Task<PagedResult<MembershipRequestDto>> GetPendingRequestsAsync(Guid clubId, int page, int pageSize);
     Task<PagedResult<ClubMemberDto>> GetMembersAsync(Guid clubId, int page, int pageSize);
     Task<List<MyMembershipDto>> GetMyMembershipsAsync(Guid userId);

@@ -1,5 +1,8 @@
+using System.Security.Claims;
+using ClubHub.API.DTOs.Admin;
 using ClubHub.API.DTOs.Club;
 using ClubHub.API.DTOs.Common;
+using ClubHub.API.DTOs.Membership;
 using ClubHub.API.Enums;
 using ClubHub.API.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -15,9 +18,18 @@ namespace ClubHub.API.Controllers;
 public class UniversityAdminController : ControllerBase
 {
     private readonly IClubService _clubService;
+    private readonly IMembershipService _membershipService;
+    private readonly IAdminUserService _adminUserService;
 
-    public UniversityAdminController(IClubService clubService)
-        => _clubService = clubService;
+    public UniversityAdminController(
+        IClubService clubService,
+        IMembershipService membershipService,
+        IAdminUserService adminUserService)
+    {
+        _clubService = clubService;
+        _membershipService = membershipService;
+        _adminUserService = adminUserService;
+    }
 
     /// <summary>Xem toàn bộ CLB (mọi trạng thái)</summary>
     [HttpGet("clubs")]
@@ -69,4 +81,47 @@ public class UniversityAdminController : ControllerBase
         var result = await _clubService.DeleteClubAsync(clubId, hardDelete: true);
         return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
     }
+
+    /// <summary>[University Admin] Chuyển quyền quản trị/chủ nhiệm CLB</summary>
+    [HttpPut("clubs/{clubId:guid}/transfer-admin")]
+    public async Task<IActionResult> TransferClubAdmin(
+        Guid clubId, [FromBody] TransferAdminRequest request)
+    {
+        var result = await _membershipService.TransferAdminByUniversityAdminAsync(
+            clubId, request, GetUserId());
+        return result.IsSuccess
+            ? Ok(ApiResponse.Ok(result.Data))
+            : BadRequest(ApiResponse.Fail(result.Error!));
+    }
+
+    /// <summary>[University Admin] Danh sách và tìm kiếm người dùng</summary>
+    [HttpGet("users")]
+    public async Task<IActionResult> GetUsers([FromQuery] AdminUserFilterRequest filter)
+    {
+        var result = await _adminUserService.GetUsersAsync(filter);
+        return Ok(ApiResponse.Ok(result));
+    }
+
+    /// <summary>[University Admin] Khóa hoặc mở khóa người dùng</summary>
+    [HttpPut("users/{id:guid}/lock")]
+    public async Task<IActionResult> SetUserLock(Guid id, [FromBody] SetUserLockRequest request)
+    {
+        var result = await _adminUserService.SetLockAsync(id, GetUserId(), request);
+        return result.IsSuccess
+            ? Ok(ApiResponse.Ok(result.Data!))
+            : BadRequest(ApiResponse.Fail(result.Error!));
+    }
+
+    /// <summary>[University Admin] Thay đổi system role của người dùng</summary>
+    [HttpPut("users/{id:guid}/role")]
+    public async Task<IActionResult> UpdateUserRole(Guid id, [FromBody] UpdateUserRoleRequest request)
+    {
+        var result = await _adminUserService.UpdateRoleAsync(id, GetUserId(), request);
+        return result.IsSuccess
+            ? Ok(ApiResponse.Ok(result.Data!))
+            : BadRequest(ApiResponse.Fail(result.Error!));
+    }
+
+    private Guid GetUserId()
+        => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 }
