@@ -21,6 +21,53 @@ public class EventService : IEventService
         _auditLogService = auditLogService;
     }
 
+    public async Task<PagedResult<EventDto>> GetPublicEventsAsync(EventFilterRequest filter, bool upcomingOnly)
+    {
+        var page = Math.Max(filter.Page, 1);
+        var pageSize = Math.Clamp(filter.PageSize, 1, 100);
+        var now = DateTime.UtcNow;
+
+        var query = _db.Events
+            .Include(e => e.Club)
+            .Include(e => e.Registrations)
+            .Where(e => e.Status != EventStatus.Draft && e.Status != EventStatus.Cancelled);
+
+        if (upcomingOnly)
+            query = query.Where(e => e.StartTime >= now && e.Status == EventStatus.Published);
+
+        if (filter.ClubId.HasValue)
+            query = query.Where(e => e.ClubId == filter.ClubId.Value);
+
+        if (filter.Category.HasValue)
+            query = query.Where(e => e.Club.Category == filter.Category.Value);
+
+        if (!string.IsNullOrWhiteSpace(filter.Keyword))
+        {
+            var keyword = filter.Keyword.Trim();
+            query = query.Where(e =>
+                e.Name.Contains(keyword) ||
+                (e.Description != null && e.Description.Contains(keyword)) ||
+                (e.Location != null && e.Location.Contains(keyword)) ||
+                e.Club.Name.Contains(keyword));
+        }
+
+        if (filter.FromDate.HasValue)
+            query = query.Where(e => e.StartTime >= filter.FromDate.Value);
+
+        if (filter.ToDate.HasValue)
+            query = query.Where(e => e.StartTime <= filter.ToDate.Value);
+
+        var total = await query.CountAsync();
+        var items = await query
+            .OrderBy(e => e.StartTime)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(e => MapToDto(e))
+            .ToListAsync();
+
+        return new PagedResult<EventDto>(items, page, pageSize, total);
+    }
+
     public async Task<PagedResult<EventDto>> GetClubEventsAsync(Guid clubId, int page, int pageSize)
     {
         page = Math.Max(page, 1);
@@ -28,7 +75,8 @@ public class EventService : IEventService
 
         var query = _db.Events
             .Include(e => e.Club)
-            .Where(e => e.ClubId == clubId && e.Status != EventStatus.Draft)
+            .Include(e => e.Registrations)
+            .Where(e => e.ClubId == clubId && e.Status != EventStatus.Draft && e.Status != EventStatus.Cancelled)
             .OrderByDescending(e => e.StartTime);
 
         var total = await query.CountAsync();
@@ -41,14 +89,23 @@ public class EventService : IEventService
         return new PagedResult<EventDto>(items, page, pageSize, total);
     }
 
-    public async Task<EventDto?> GetEventByIdAsync(Guid eventId)
+    public async Task<EventDto?> GetEventByIdAsync(Guid eventId, Guid? requesterId = null)
     {
         var ev = await _db.Events
             .Include(e => e.Club)
             .Include(e => e.Registrations)
             .FirstOrDefaultAsync(e => e.Id == eventId);
 
-        return ev == null ? null : MapToDto(ev);
+        if (ev == null) return null;
+        if (IsPublicEvent(ev)) return MapToDto(ev);
+
+        if (!requesterId.HasValue)
+            return null;
+
+        if (!await CanViewPrivateEventAsync(ev.ClubId, requesterId.Value))
+            return null;
+
+        return MapToDto(ev);
     }
 
     public async Task<ApiResult<EventDto>> CreateEventAsync(Guid clubId, CreateEventRequest req, Guid createdBy)
@@ -76,7 +133,7 @@ public class EventService : IEventService
         await _db.SaveChangesAsync();
         await _auditLogService.LogAsync(clubId, createdBy, "EventCreated", nameof(Event), ev.Id, description: $"Created event '{ev.Name}'.");
 
-        var result = await GetEventByIdAsync(ev.Id);
+        var result = await GetEventByIdAsync(ev.Id, createdBy);
         return ApiResult<EventDto>.Success(result!);
     }
 
@@ -103,7 +160,7 @@ public class EventService : IEventService
         await _db.SaveChangesAsync();
         await _auditLogService.LogAsync(ev.ClubId, requesterId, "EventUpdated", nameof(Event), ev.Id, description: $"Updated event '{ev.Name}'.");
 
-        var result = await GetEventByIdAsync(eventId);
+        var result = await GetEventByIdAsync(eventId, requesterId);
         return ApiResult<EventDto>.Success(result!);
     }
 
@@ -222,6 +279,12 @@ public class EventService : IEventService
 
         return new PagedResult<EventRegistrationDto>(items, page, pageSize, total);
     }
+
+    private static bool IsPublicEvent(Event ev)
+        => ev.Status != EventStatus.Draft && ev.Status != EventStatus.Cancelled;
+
+    private async Task<bool> CanViewPrivateEventAsync(Guid clubId, Guid userId)
+        => await IsMemberAsync(clubId, userId);
 
     private async Task<bool> IsClubAdminAsync(Guid clubId, Guid userId)
         => await _db.Users.AnyAsync(u => u.Id == userId && u.SystemRole == SystemRole.UniversityAdmin)

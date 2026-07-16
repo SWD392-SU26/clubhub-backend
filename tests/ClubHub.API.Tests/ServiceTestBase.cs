@@ -36,4 +36,7 @@ public abstract class ServiceTestBase
     protected static PointService Points(AppDbContext db) => new(db, Audit(db));
     protected static MembershipService Memberships(AppDbContext db) => new(db, Audit(db));
     protected static ProposalService Proposals(AppDbContext db) => new(db, Clubs(db));
+    protected static NotificationService Notifications(AppDbContext db) => new(db);
+    protected static EventService Events(AppDbContext db) => new(db, Points(db), Audit(db));
+    protected static AdminStatisticsService Statistics(AppDbContext db) => new(db);
 }

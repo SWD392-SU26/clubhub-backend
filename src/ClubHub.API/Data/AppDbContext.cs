@@ -119,6 +119,11 @@ public class AppDbContext : DbContext
              .WithMany()
              .HasForeignKey(p => p.ReviewedBy)
              .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(p => p.RevisionRequester)
+             .WithMany()
+             .HasForeignKey(p => p.RequestedRevisionBy)
+             .OnDelete(DeleteBehavior.Restrict);
         });
 
         // ── Event ────────────────────────────────────────────────────────────

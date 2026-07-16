@@ -116,6 +116,7 @@ public static class DataSeeder
 
         var techWorkshopId = Guid.Parse("30000000-0000-0000-0000-000000000001");
         var techDemoDayId = Guid.Parse("30000000-0000-0000-0000-000000000002");
+        var techDraftPlanningId = Guid.Parse("30000000-0000-0000-0000-000000000003");
 
         db.Users.AddRange(admin, studentOne, studentTwo, studentThree);
         db.Clubs.AddRange(clubs);
@@ -189,6 +190,20 @@ public static class DataSeeder
                 Status = EventStatus.Completed,
                 CreatedBy = StudentTwoId,
                 CreatedAt = now.AddDays(-12)
+            },
+            new Event
+            {
+                Id = techDraftPlanningId,
+                ClubId = TechClubId,
+                Name = "Internal Leadership Planning",
+                Description = "Draft-only planning session for club managers.",
+                Location = "Online",
+                StartTime = now.AddDays(14),
+                EndTime = now.AddDays(14).AddHours(1),
+                Capacity = 10,
+                Status = EventStatus.Draft,
+                CreatedBy = StudentOneId,
+                CreatedAt = now.AddDays(-1)
             });
 
         db.EventRegistrations.Add(new EventRegistration
@@ -306,6 +321,38 @@ public static class DataSeeder
             Description = "Initial sample activity history.",
             CreatedAt = now
         });
+
+        db.Notifications.AddRange(
+            new Notification
+            {
+                Id = Guid.Parse("b0000000-0000-0000-0000-000000000001"),
+                UserId = StudentThreeId,
+                Title = "Join request submitted",
+                Content = "Your request to join CodeCraft Technology Club is waiting for review.",
+                Type = "JOIN_REQUEST_PENDING",
+                IsRead = false,
+                CreatedAt = now.AddHours(-6)
+            },
+            new Notification
+            {
+                Id = Guid.Parse("b0000000-0000-0000-0000-000000000002"),
+                UserId = StudentTwoId,
+                Title = "Event reminder",
+                Content = "Backend API Workshop is coming up soon.",
+                Type = "EVENT_REMINDER",
+                IsRead = false,
+                CreatedAt = now.AddHours(-2)
+            },
+            new Notification
+            {
+                Id = Guid.Parse("b0000000-0000-0000-0000-000000000003"),
+                UserId = StudentOneId,
+                Title = "Announcement published",
+                Content = "Your pinned announcement is visible to club members.",
+                Type = "ANNOUNCEMENT",
+                IsRead = true,
+                CreatedAt = now.AddDays(-1)
+            });
 
         await db.SaveChangesAsync();
     }

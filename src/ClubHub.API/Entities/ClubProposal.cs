@@ -48,6 +48,7 @@ public class ClubProposal
     public string? Notes { get; set; }
 
     public string? RejectionReason { get; set; }
+    public string? RevisionNote { get; set; }
 
     public ProposalStatus Status { get; set; } = ProposalStatus.Pending;
 
@@ -57,7 +58,12 @@ public class ClubProposal
     public Guid? ReviewedBy { get; set; }
     public DateTime? ReviewedAt { get; set; }
 
+    public Guid? RequestedRevisionBy { get; set; }
+    public DateTime? RequestedRevisionAt { get; set; }
+    public DateTime? ResubmittedAt { get; set; }
+
     // Navigation
     public User Submitter { get; set; } = null!;
     public User? Reviewer { get; set; }
+    public User? RevisionRequester { get; set; }
 }

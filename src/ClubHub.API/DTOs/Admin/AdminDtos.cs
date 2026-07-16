@@ -10,6 +10,11 @@ public record UniversityStatisticsDto(
     int LockedClubs,
     int DeletedClubs,
     int TotalEvents,
+    int TotalClubMembers,
+    int TotalClubProposals,
+    int ApprovedClubProposals,
+    int RejectedClubProposals,
+    int TotalJoinRequests,
     int PendingJoinRequests,
     int PendingClubProposals
 );
@@ -19,8 +24,12 @@ public record ClubStatisticsDto(
     string ClubName,
     int MemberCount,
     int PendingJoinRequests,
+    int ApprovedJoinRequests,
     int EventCount,
+    int UpcomingEventCount,
     int CompletedEventCount,
     int FeedbackCount,
+    double AverageFeedbackRating,
+    int PointTransactionCount,
     int TotalAwardedPoints
 );

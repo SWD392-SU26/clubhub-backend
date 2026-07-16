@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using ClubHub.API.DTOs.Common;
 using ClubHub.API.DTOs.Proposal;
-using ClubHub.API.Enums;
 using ClubHub.API.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -20,7 +19,6 @@ public class ProposalController : ControllerBase
     public ProposalController(IProposalService proposalService)
         => _proposalService = proposalService;
 
-    /// <summary>[Student] Nộp hồ sơ thành lập CLB</summary>
     [HttpPost]
     public async Task<IActionResult> Submit([FromBody] SubmitProposalRequest request)
     {
@@ -30,7 +28,6 @@ public class ProposalController : ControllerBase
             : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
-    /// <summary>[Student] Xem hồ sơ của mình</summary>
     [HttpGet("my")]
     public async Task<IActionResult> GetMine()
     {
@@ -38,17 +35,33 @@ public class ProposalController : ControllerBase
         return Ok(ApiResponse.Ok(result));
     }
 
-    /// <summary>Xem chi tiết hồ sơ</summary>
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id)
     {
         var result = await _proposalService.GetByIdAsync(id);
         return result != null
             ? Ok(ApiResponse.Ok(result))
-            : NotFound(ApiResponse.Fail("Hồ sơ không tồn tại."));
+            : NotFound(ApiResponse.Fail("Proposal does not exist."));
     }
 
-    /// <summary>[University Admin] Xem tất cả hồ sơ</summary>
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateProposalRequest request)
+    {
+        var result = await _proposalService.UpdateAsync(id, request, GetUserId());
+        return result.IsSuccess
+            ? Ok(ApiResponse.Ok(result.Data!))
+            : BadRequest(ApiResponse.Fail(result.Error!));
+    }
+
+    [HttpPut("{id:guid}/resubmit")]
+    public async Task<IActionResult> Resubmit(Guid id)
+    {
+        var result = await _proposalService.ResubmitAsync(id, GetUserId());
+        return result.IsSuccess
+            ? Ok(ApiResponse.Ok(result.Data!))
+            : BadRequest(ApiResponse.Fail(result.Error!));
+    }
+
     [HttpGet]
     [Authorize(Roles = "UniversityAdmin")]
     public async Task<IActionResult> GetAll(
@@ -60,7 +73,6 @@ public class ProposalController : ControllerBase
         return Ok(ApiResponse.Ok(result));
     }
 
-    /// <summary>[University Admin] Duyệt hoặc từ chối hồ sơ</summary>
     [HttpPut("{id:guid}/review")]
     [Authorize(Roles = "UniversityAdmin")]
     public async Task<IActionResult> Review(Guid id, [FromBody] ReviewProposalRequest request)
@@ -71,7 +83,6 @@ public class ProposalController : ControllerBase
             : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
-    /// <summary>[University Admin] Yêu cầu bổ sung hồ sơ</summary>
     [HttpPut("{id:guid}/request-revision")]
     [HttpPut("{id:guid}/request-info")]
     [Authorize(Roles = "UniversityAdmin")]

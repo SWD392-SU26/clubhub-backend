@@ -60,6 +60,8 @@ builder.Services.AddScoped<IProposalService, ProposalService>();
 builder.Services.AddScoped<IAnnouncementService, AnnouncementService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IAdminStatisticsService, AdminStatisticsService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IUploadService, UploadService>();
 
 // ── Controllers ───────────────────────────────────────────────────────────────
 builder.Services.AddControllers()
@@ -120,6 +122,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseStaticFiles();
 app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();

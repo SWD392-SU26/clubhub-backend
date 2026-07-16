@@ -9,6 +9,8 @@ public interface IProposalService
     Task<ApiResult<ProposalDto>> SubmitAsync(SubmitProposalRequest request, Guid submittedBy);
     Task<ApiResult<bool>> ReviewAsync(Guid proposalId, ReviewProposalRequest request, Guid reviewerId);
     Task<ApiResult<bool>> RequestRevisionAsync(Guid proposalId, RequestRevisionRequest request, Guid reviewerId);
+    Task<ApiResult<ProposalDetailDto>> UpdateAsync(Guid proposalId, UpdateProposalRequest request, Guid userId);
+    Task<ApiResult<ProposalDetailDto>> ResubmitAsync(Guid proposalId, Guid userId);
     Task<ProposalDetailDto?> GetByIdAsync(Guid proposalId);
     Task<PagedResult<ProposalDto>> GetAllAsync(string? status, int page, int pageSize);
     Task<List<ProposalDto>> GetMyProposalsAsync(Guid userId);

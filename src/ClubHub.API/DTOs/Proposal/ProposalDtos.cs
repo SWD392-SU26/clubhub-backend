@@ -32,6 +32,24 @@ public record RequestRevisionRequest(
     [Required] string RevisionNote
 );
 
+public record UpdateProposalRequest(
+    [MaxLength(150)] string? ClubName,
+    ClubCategory? Category,
+    string? Description,
+    string? Mission,
+    string? Reason,
+    string? ActivityPlan,
+    [MaxLength(200)] string? FounderFullName,
+    [MaxLength(20)] string? FounderStudentCode,
+    string? FounderIdentityDocumentUrl,
+    [EmailAddress] string? ContactEmail,
+    string? ContactPhone,
+    string? AdvisorName,
+    string? LogoUrl,
+    string? ProposalFileUrl,
+    string? AdditionalNote
+);
+
 // ── Response DTOs ─────────────────────────────────────────────────────────────
 
 public record ProposalDto(
@@ -67,6 +85,9 @@ public record ProposalDetailDto(
     string? ProposalFileUrl,
     string? AdditionalNote,
     string? RejectionReason,
+    string? RevisionNote,
+    DateTime? RequestedRevisionAt,
+    DateTime? ResubmittedAt,
     string Status,
     string SubmitterName,
     DateTime SubmittedAt,

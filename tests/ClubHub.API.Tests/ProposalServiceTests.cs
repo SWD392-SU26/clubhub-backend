@@ -50,4 +50,65 @@ public class ProposalServiceTests : ServiceTestBase
         Assert.Equal(ClubRole.President, president.RoleInClub);
         Assert.Equal(MembershipStatus.Approved, president.Status);
     }
+
+    [Fact]
+    public async Task Owner_Can_Edit_And_Resubmit_NeedMoreInfo_Proposal()
+    {
+        await using var db = await CreateSeededDbAsync();
+        var service = Proposals(db);
+
+        var proposal = await db.ClubProposals.SingleAsync(p => p.ClubName == "Media Studio");
+
+        var edit = await service.UpdateAsync(
+            proposal.Id,
+            new UpdateProposalRequest(
+                "Media Studio Updated",
+                null,
+                null,
+                null,
+                null,
+                "Weekly media production workshops and monthly campus news episodes.",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "Dr. Media Advisor",
+                null,
+                null,
+                null),
+            DataSeeder.StudentTwoId);
+
+        var resubmit = await service.ResubmitAsync(proposal.Id, DataSeeder.StudentTwoId);
+
+        Assert.True(edit.IsSuccess);
+        Assert.True(resubmit.IsSuccess);
+        Assert.Equal(ProposalStatus.Pending, proposal.Status);
+        Assert.NotNull(proposal.ResubmittedAt);
+    }
+
+    [Fact]
+    public async Task NonOwner_Cannot_Edit_And_Approved_Proposal_Cannot_Be_Edited()
+    {
+        await using var db = await CreateSeededDbAsync();
+        var service = Proposals(db);
+
+        var proposal = await db.ClubProposals.SingleAsync(p => p.ClubName == "Startup Lab");
+
+        var nonOwnerEdit = await service.UpdateAsync(
+            proposal.Id,
+            new UpdateProposalRequest("Not Mine", null, null, null, null, null, null, null, null, null, null, null, null, null, null),
+            DataSeeder.StudentOneId);
+
+        proposal.Status = ProposalStatus.Approved;
+        await db.SaveChangesAsync();
+
+        var approvedEdit = await service.UpdateAsync(
+            proposal.Id,
+            new UpdateProposalRequest("Already Approved", null, null, null, null, null, null, null, null, null, null, null, null, null, null),
+            DataSeeder.StudentThreeId);
+
+        Assert.False(nonOwnerEdit.IsSuccess);
+        Assert.False(approvedEdit.IsSuccess);
+    }
 }

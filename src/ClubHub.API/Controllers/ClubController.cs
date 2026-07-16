@@ -14,8 +14,13 @@ namespace ClubHub.API.Controllers;
 public class ClubController : ControllerBase
 {
     private readonly IClubService _clubService;
+    private readonly IAdminStatisticsService _statisticsService;
 
-    public ClubController(IClubService clubService) => _clubService = clubService;
+    public ClubController(IClubService clubService, IAdminStatisticsService statisticsService)
+    {
+        _clubService = clubService;
+        _statisticsService = statisticsService;
+    }
 
     /// <summary>Lấy danh sách CLB (có filter + phân trang)</summary>
     [HttpGet]
@@ -65,6 +70,17 @@ public class ClubController : ControllerBase
     public async Task<IActionResult> UpdateClub(Guid clubId, [FromBody] UpdateClubRequest request)
     {
         var result = await _clubService.UpdateClubAsync(clubId, request, GetUserId());
+        return result.IsSuccess
+            ? Ok(ApiResponse.Ok(result.Data!))
+            : BadRequest(ApiResponse.Fail(result.Error!));
+    }
+
+    /// <summary>[Club Admin] View statistics for a managed club</summary>
+    [HttpGet("{clubId:guid}/statistics")]
+    [Authorize]
+    public async Task<IActionResult> GetClubStatistics(Guid clubId)
+    {
+        var result = await _statisticsService.GetClubStatisticsForUserAsync(clubId, GetUserId());
         return result.IsSuccess
             ? Ok(ApiResponse.Ok(result.Data!))
             : BadRequest(ApiResponse.Fail(result.Error!));

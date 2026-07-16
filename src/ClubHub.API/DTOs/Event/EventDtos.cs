@@ -24,6 +24,17 @@ public record UpdateEventRequest(
     EventStatus? Status
 );
 
+public record EventFilterRequest
+{
+    public Guid? ClubId { get; init; }
+    public ClubCategory? Category { get; init; }
+    public string? Keyword { get; init; }
+    public DateTime? FromDate { get; init; }
+    public DateTime? ToDate { get; init; }
+    public int Page { get; init; } = 1;
+    public int PageSize { get; init; } = 10;
+}
+
 // ── Response DTOs ─────────────────────────────────────────────────────────────
 
 public record EventDto(
