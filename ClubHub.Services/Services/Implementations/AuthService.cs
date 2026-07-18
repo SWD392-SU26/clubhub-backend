@@ -17,26 +17,29 @@ public class AuthService : IAuthService
 {
     private readonly IUnitOfWork _uow;
     private readonly IConfiguration _config;
+    private readonly IEmailService _emailService;
 
-    public AuthService(IUnitOfWork uow, IConfiguration config)
+    public AuthService(IUnitOfWork uow, IConfiguration config, IEmailService emailService)
     {
         _uow = uow;
         _config = config;
+        _emailService = emailService;
     }
 
-    public async Task<ApiResult<LoginResponse>> RegisterAsync(RegisterRequest req)
+    // ── Register → send OTP ───────────────────────────────────────────────────
+    public async Task<ApiResult<bool>> RegisterAsync(RegisterRequest req)
     {
         if (await _uow.Users.ExistsByEmailAsync(req.Email))
-            return ApiResult<LoginResponse>.Failure("Email đã tồn tại.");
+            return ApiResult<bool>.Failure("Email đã tồn tại.");
 
         if (await _uow.Users.ExistsByUsernameAsync(req.Username))
-            return ApiResult<LoginResponse>.Failure("Username đã tồn tại.");
+            return ApiResult<bool>.Failure("Username đã tồn tại.");
 
         var validator = new PhoneValidator();
-
         if (!validator.IsValid(req.Phone))
-            return ApiResult<LoginResponse>.Failure("Số điện thoại không hợp lệ.");
+            return ApiResult<bool>.Failure("Số điện thoại không hợp lệ.");
 
+        var otp = GenerateOtp();
         var user = new User
         {
             FullName = req.FullName,
@@ -44,28 +47,64 @@ public class AuthService : IAuthService
             Email = req.Email,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(req.Password),
             StudentCode = req.StudentCode,
-            Phone = req.Phone
+            Phone = req.Phone,
+            Role = Role.Student,
+            Status = UserStatus.Inactive,       // chưa verify email
+            IsEmailVerified = false,
+            EmailVerifyOtp = otp,
+            EmailVerifyOtpExpiry = DateTime.UtcNow.AddMinutes(10)
         };
 
         _uow.Users.Add(user);
         await _uow.SaveChangesAsync();
 
+        await _emailService.SendOtpAsync(req.Email, "Xác thực tài khoản ClubHub",
+            $"Mã OTP xác thực tài khoản của bạn là: <b>{otp}</b>. Mã có hiệu lực trong 10 phút.");
+
+        return ApiResult<bool>.Success(true);
+    }
+
+    // ── Verify Email OTP ──────────────────────────────────────────────────────
+    public async Task<ApiResult<LoginResponse>> VerifyEmailOtpAsync(VerifyOtpRequest req)
+    {
+        var user = await _uow.Users.GetByEmailAsync(req.Email);
+
+        if (user == null
+            || user.EmailVerifyOtp != req.Otp
+            || user.EmailVerifyOtpExpiry < DateTime.UtcNow)
+            return ApiResult<LoginResponse>.Failure("OTP không hợp lệ hoặc đã hết hạn.");
+
+        user.IsEmailVerified = true;
+        user.Status = UserStatus.Active;
+        user.EmailVerifyOtp = null;
+        user.EmailVerifyOtpExpiry = null;
+        user.UpdatedAt = DateTime.UtcNow;
+        await _uow.SaveChangesAsync();
+
         return await GenerateLoginResponseAsync(user);
     }
 
+    // ── Login ─────────────────────────────────────────────────────────────────
     public async Task<ApiResult<LoginResponse>> LoginAsync(LoginRequest req)
     {
         var user = await _uow.Users.GetByEmailOrUsernameAsync(req.EmailOrUsername);
 
         if (user == null || !BCrypt.Net.BCrypt.Verify(req.Password, user.PasswordHash))
-            return ApiResult<LoginResponse>.Failure("Thông tin đăng nhập không đúng, vui lòng kiểm tra lại tài khoản hoặc mật khẩu.");
+            return ApiResult<LoginResponse>.Failure("Thông tin đăng nhập không đúng.");
 
-        if (!user.IsActive)
-            return ApiResult<LoginResponse>.Failure("Tài khoản đã bị vô hiệu hóa.");
+        if (!user.IsEmailVerified)
+            return ApiResult<LoginResponse>.Failure("Tài khoản chưa được xác thực email.");
+
+        if (user.Status == UserStatus.Lock)
+            return ApiResult<LoginResponse>.Failure("Tài khoản đã bị khóa.");
+
+        if (user.Status == UserStatus.Deleted || user.Status == UserStatus.Inactive)
+            return ApiResult<LoginResponse>.Failure("Tài khoản không khả dụng.");
 
         return await GenerateLoginResponseAsync(user);
     }
 
+    // ── Refresh Token ─────────────────────────────────────────────────────────
     public async Task<ApiResult<LoginResponse>> RefreshTokenAsync(string refreshToken)
     {
         var user = await _uow.Users.GetByRefreshTokenAsync(refreshToken);
@@ -76,6 +115,7 @@ public class AuthService : IAuthService
         return await GenerateLoginResponseAsync(user);
     }
 
+    // ── Change Password ───────────────────────────────────────────────────────
     public async Task<ApiResult<bool>> ChangePasswordAsync(Guid userId, ChangePasswordRequest req)
     {
         var user = await _uow.Users.GetByIdAsync(userId);
@@ -90,34 +130,43 @@ public class AuthService : IAuthService
         return ApiResult<bool>.Success(true);
     }
 
+    // ── Forgot Password → send OTP ────────────────────────────────────────────
     public async Task<ApiResult<bool>> ForgotPasswordAsync(ForgotPasswordRequest req)
     {
         var user = await _uow.Users.GetByEmailAsync(req.Email);
         if (user == null)
-            return ApiResult<bool>.Success(true); // Don't reveal whether email exists
+            return ApiResult<bool>.Success(true); // Không tiết lộ email có tồn tại không
 
-        user.PasswordResetToken = GenerateSecureToken();
-        user.PasswordResetTokenExpiry = DateTime.UtcNow.AddHours(1);
+        var otp = GenerateOtp();
+        user.PasswordResetOtp = otp;
+        user.PasswordResetOtpExpiry = DateTime.UtcNow.AddMinutes(10);
         await _uow.SaveChangesAsync();
 
-        // TODO: Send email with reset token
+        await _emailService.SendOtpAsync(req.Email, "Đặt lại mật khẩu ClubHub",
+            $"Mã OTP đặt lại mật khẩu của bạn là: <b>{otp}</b>. Mã có hiệu lực trong 10 phút.");
+
         return ApiResult<bool>.Success(true);
     }
 
+    // ── Reset Password with OTP ───────────────────────────────────────────────
     public async Task<ApiResult<bool>> ResetPasswordAsync(ResetPasswordRequest req)
     {
-        var user = await _uow.Users.GetByPasswordResetTokenAsync(req.Token);
+        var user = await _uow.Users.GetByEmailAsync(req.Email);
 
-        if (user == null)
-            return ApiResult<bool>.Failure("Token không hợp lệ hoặc đã hết hạn.");
+        if (user == null
+            || user.PasswordResetOtp != req.Otp
+            || user.PasswordResetOtpExpiry < DateTime.UtcNow)
+            return ApiResult<bool>.Failure("OTP không hợp lệ hoặc đã hết hạn.");
 
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(req.NewPassword);
-        user.PasswordResetToken = null;
-        user.PasswordResetTokenExpiry = null;
+        user.PasswordResetOtp = null;
+        user.PasswordResetOtpExpiry = null;
+        user.UpdatedAt = DateTime.UtcNow;
         await _uow.SaveChangesAsync();
         return ApiResult<bool>.Success(true);
     }
 
+    // ── Get Profile ───────────────────────────────────────────────────────────
     public async Task<ApiResult<UserProfileDto>> GetProfileAsync(Guid userId)
     {
         var user = await _uow.Users.GetByIdAsync(userId);
@@ -125,6 +174,7 @@ public class AuthService : IAuthService
         return ApiResult<UserProfileDto>.Success(MapToProfile(user));
     }
 
+    // ── Update Profile ────────────────────────────────────────────────────────
     public async Task<ApiResult<UserProfileDto>> UpdateProfileAsync(Guid userId, UpdateProfileRequest req)
     {
         var user = await _uow.Users.GetByIdAsync(userId);
@@ -139,6 +189,7 @@ public class AuthService : IAuthService
         return ApiResult<UserProfileDto>.Success(MapToProfile(user));
     }
 
+    // ── Logout ────────────────────────────────────────────────────────────────
     public async Task<ApiResult<bool>> LogoutAsync(Guid userId)
     {
         var user = await _uow.Users.GetByIdAsync(userId);
@@ -173,7 +224,7 @@ public class AuthService : IAuthService
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new Claim(ClaimTypes.Email, user.Email),
             new Claim(ClaimTypes.Name, user.Username),
-            new Claim(ClaimTypes.Role, user.SystemRole.ToString())
+            new Claim(ClaimTypes.Role, user.Role.ToString())
         };
 
         var token = new JwtSecurityToken(
@@ -190,9 +241,12 @@ public class AuthService : IAuthService
     private static string GenerateSecureToken()
         => Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
 
+    private static string GenerateOtp()
+        => Random.Shared.Next(100000, 999999).ToString();
+
     private static UserProfileDto MapToProfile(User u) => new(
         u.Id, u.FullName, u.Username, u.Email,
         u.StudentCode, u.Phone, u.AvatarUrl,
-        u.SystemRole.ToString(), u.CreatedAt
+        u.Role.ToString(), u.Status.ToString(), u.IsEmailVerified, u.CreatedAt
     );
 }

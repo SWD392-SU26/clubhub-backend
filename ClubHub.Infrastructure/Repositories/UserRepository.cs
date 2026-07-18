@@ -19,10 +19,6 @@ public class UserRepository : GenericRepository<User>, IUserRepository
         => await _dbSet.FirstOrDefaultAsync(u =>
             u.RefreshToken == refreshToken && u.RefreshTokenExpiry > DateTime.UtcNow);
 
-    public async Task<User?> GetByPasswordResetTokenAsync(string token)
-        => await _dbSet.FirstOrDefaultAsync(u =>
-            u.PasswordResetToken == token && u.PasswordResetTokenExpiry > DateTime.UtcNow);
-
     public async Task<bool> ExistsByEmailAsync(string email)
         => await _dbSet.AnyAsync(u => u.Email == email);
 

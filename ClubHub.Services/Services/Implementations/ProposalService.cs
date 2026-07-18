@@ -56,6 +56,39 @@ public class ProposalService : IProposalService
         return ApiResult<ProposalDto>.Success(MapToDto(proposal));
     }
 
+    public async Task<ApiResult<ProposalDto>> UpdateAsync(Guid proposalId, SubmitProposalRequest req, Guid userId)
+    {
+        var proposal = await _uow.Proposals.GetByIdAsync(proposalId);
+        if (proposal == null) return ApiResult<ProposalDto>.Failure("Hồ sơ không tồn tại.");
+        if (proposal.SubmittedBy != userId)
+            return ApiResult<ProposalDto>.Failure("Bạn không phải người gửi hồ sơ này.");
+        if (proposal.Status != ProposalStatus.Pending && proposal.Status != ProposalStatus.NeedsRevision)
+            return ApiResult<ProposalDto>.Failure("Chỉ có thể sửa hồ sơ đang ở trạng thái Pending hoặc NeedsRevision.");
+
+        proposal.ClubName = req.ClubName;
+        proposal.Category = req.Category;
+        proposal.Description = req.Description;
+        proposal.Mission = req.Mission;
+        proposal.Reason = req.Reason;
+        proposal.ActivityPlan = req.ActivityPlan;
+        proposal.FounderInfo = req.FounderInfo;
+        proposal.FounderStudentCode = req.FounderStudentCode;
+        proposal.FounderIdCardUrl = req.FounderIdCardUrl;
+        proposal.ContactEmail = req.ContactEmail;
+        proposal.ContactPhone = req.ContactPhone;
+        proposal.Advisor = req.Advisor;
+        proposal.LogoUrl = req.LogoUrl;
+        proposal.ProposalFileUrl = req.ProposalFileUrl;
+        proposal.Notes = req.Notes;
+
+        await _uow.SaveChangesAsync();
+
+        await _auditService.LogAsync("Proposal", proposalId, "Update",
+            userId, null, null, null, $"Sửa hồ sơ thành lập CLB: {proposal.ClubName}");
+
+        return ApiResult<ProposalDto>.Success(MapToDto(proposal));
+    }
+
     public async Task<ApiResult<ProposalDto>> ResubmitAsync(Guid proposalId, SubmitProposalRequest req, Guid submittedBy)
     {
         var proposal = await _uow.Proposals.GetByIdAsync(proposalId);
@@ -122,6 +155,9 @@ public class ProposalService : IProposalService
         return ApiResult<ProposalDto>.Success(MapToDto(proposal));
     }
 
+    /// <summary>
+    /// Duyệt hồ sơ: nếu Approve → update role người nộp lên ClubAdmin, tạo CLB tự động.
+    /// </summary>
     public async Task<ApiResult<bool>> ReviewAsync(Guid proposalId, ReviewProposalRequest req, Guid reviewerId)
     {
         var proposal = await _uow.Proposals.GetByIdAsync(proposalId);
@@ -136,7 +172,15 @@ public class ProposalService : IProposalService
         {
             proposal.Status = ProposalStatus.Approved;
 
-            // Auto-create the club
+            // ── Nâng role người nộp lên ClubAdmin ────────────────────────────
+            var submitter = await _uow.Users.GetByIdAsync(proposal.SubmittedBy);
+            if (submitter != null && submitter.Role == Role.Student)
+            {
+                submitter.Role = Role.ClubAdmin;
+                submitter.UpdatedAt = DateTime.UtcNow;
+            }
+
+            // ── Tạo CLB tự động ───────────────────────────────────────────────
             await _clubService.CreateClubAsync(new CreateClubRequest(
                 proposal.ClubName, proposal.Category,
                 proposal.Description, proposal.LogoUrl, null),

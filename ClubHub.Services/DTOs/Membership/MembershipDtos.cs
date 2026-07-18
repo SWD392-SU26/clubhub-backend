@@ -14,7 +14,7 @@ public record ReviewMembershipRequest(
 
 public record AssignRoleRequest(
     [Required] Guid UserId,
-    [Required] ClubRole NewRole
+    [Required] Role NewRole
 );
 
 public record TransferAdminRequest([Required] Guid NewAdminUserId);

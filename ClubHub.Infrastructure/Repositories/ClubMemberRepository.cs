@@ -13,7 +13,7 @@ public class ClubMemberRepository : GenericRepository<ClubMember>, IClubMemberRe
         => await _dbSet.AnyAsync(m =>
             m.ClubId == clubId && m.UserId == userId &&
             m.Status == MembershipStatus.Approved &&
-            (m.RoleInClub == ClubRole.ClubAdmin || m.RoleInClub == ClubRole.President));
+            m.RoleInClub == Role.ClubAdmin);
 
     public async Task<bool> IsMemberAsync(Guid clubId, Guid userId)
         => await _dbSet.AnyAsync(m =>

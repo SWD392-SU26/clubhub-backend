@@ -20,6 +20,18 @@ public record UpdateClubRequest(
     string? CoverImageUrl
 );
 
+/// <summary>Dành cho UniversityAdmin tạo CLB trực tiếp và chọn ClubAdmin</summary>
+public record CreateClubWithAdminRequest(
+    [Required, MaxLength(150)] string Name,
+    ClubCategory Category,
+    string? Description,
+    string? LogoUrl,
+    string? CoverImageUrl,
+    [Required] Guid ClubAdminUserId
+);
+
+public record UpdateClubStatusRequest([Required] ClubStatus Status);
+
 public record ClubFilterRequest
 {
     public ClubCategory? Category { get; init; }

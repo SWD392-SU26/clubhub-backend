@@ -1,27 +1,29 @@
 namespace ClubHub.API.Enums;
 
-public enum SystemRole
+/// <summary>Vai trò hệ thống hợp nhất</summary>
+public enum Role
 {
     Student,
+    ClubMember,
+    ClubAdmin,
     UniversityAdmin
 }
 
-public enum ClubRole
+/// <summary>Trạng thái tài khoản người dùng</summary>
+public enum UserStatus
 {
-    Member,
-    VicePresident,
-    President,
-    ClubAdmin
+    Active,
+    Inactive,
+    Lock,
+    Deleted
 }
 
 public enum ClubStatus
 {
     Active,
-    Hidden,
-    Locked,
-    Archived,
-    Deleted,
-    Dissolved
+    Inactive,
+    Lock,
+    Deleted
 }
 
 public enum ClubCategory
