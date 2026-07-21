@@ -36,7 +36,8 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> VerifyEmail([FromBody] VerifyOtpRequest request)
     {
         var result = await _authService.VerifyEmailOtpAsync(request);
-        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data!)) : BadRequest(ApiResponse.Fail(result.Error!));
+        //return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data!)) : BadRequest(ApiResponse.Fail(result.Error!));
+        return result.IsSuccess ? Ok(ApiResponse.Ok("Verify successfully")) : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
     /// <summary>Đăng nhập</summary>
