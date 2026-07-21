@@ -34,11 +34,22 @@ public class MembershipService : IMembershipService
                 return ApiResult<bool>.Failure("Bạn đã gửi đơn tham gia CLB này rồi.");
             if (existing.Status == MembershipStatus.Approved)
                 return ApiResult<bool>.Failure("Bạn đã là thành viên của CLB này.");
-        }
 
-        if (existing != null && existing.Status != MembershipStatus.Pending)
-        {
-            throw new InvalidOperationException("Unexpected membership status for existing membership.");
+            // Cancelled / Rejected / Left → cho apply lại (reset record cũ)
+            var previousStatus = existing.Status;
+            existing.Status = MembershipStatus.Pending;
+            existing.JoinReason = req.JoinReason;
+            existing.RequestedAt = DateTime.UtcNow;
+            existing.RejectionReason = null;
+            existing.ReviewedBy = null;
+            existing.ReviewedAt = null;
+            existing.LeftAt = null;
+            await _uow.SaveChangesAsync();
+
+            await _auditService.LogAsync("ClubMember", existing.Id, "RequestJoin",
+                userId, null, clubId, null, $"User {userId} re-requested to join club {clubId} (was {previousStatus})");
+
+            return ApiResult<bool>.Success(true);
         }
 
         var membership = new ClubMember
