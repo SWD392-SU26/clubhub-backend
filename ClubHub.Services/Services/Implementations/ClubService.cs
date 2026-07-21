@@ -74,15 +74,25 @@ public class ClubService : IClubService
 
         if (club == null) return null;
 
-        var officers = club.Members
+        var approvedMembers = club.Members
+            .Where(m => m.Status == MembershipStatus.Approved)
+            .ToList();
+
+        var officers = approvedMembers
             .Where(m => m.RoleInClub == Role.ClubAdmin)
             .Select(m => new ClubOfficerDto(m.UserId, m.User.FullName, m.User.AvatarUrl, m.RoleInClub.ToString()))
+            .ToList();
+
+        var members = approvedMembers
+            .Select(m => new ClubMemberDetailDto(
+                m.Id, m.UserId, m.User.FullName, m.User.AvatarUrl,
+                m.User.StudentCode, m.RoleInClub.ToString(), m.JoinedAt))
             .ToList();
 
         return new ClubDetailDto(
             club.Id, club.Name, club.Category.ToString(), club.Description,
             club.LogoUrl, club.CoverImageUrl, club.Status.ToString(),
-            club.Members.Count(m => m.Status == MembershipStatus.Approved), officers, club.CreatedAt);
+            approvedMembers.Count, officers, members, club.CreatedAt);
     }
 
     /// <summary>Tạo CLB, thêm người tạo làm ClubAdmin (dùng nội bộ và từ Proposal)</summary>
@@ -266,10 +276,22 @@ public class ClubService : IClubService
     }
 
     /// <summary>Lấy danh sách người dùng có Role = ClubAdmin để UniAdmin chọn khi tạo CLB</summary>
-    public async Task<List<UserProfileDto>> GetClubAdminsAsync()
+    public async Task<List<UserProfileDto>> GetClubAdminsAsync(ClubCategory? category = null, string? searchTerm = null)
     {
-        return await _uow.Users.Query()
-            .Where(u => u.Role == Role.ClubAdmin && u.Status == UserStatus.Active)
+        var query = _uow.Users.Query()
+            .Where(u => u.Role == Role.ClubAdmin && u.Status == UserStatus.Active);
+
+        // Nếu có filter theo category hoặc search tên club → join với ClubMembers + Clubs
+        if (category.HasValue || !string.IsNullOrWhiteSpace(searchTerm))
+        {
+            query = query.Where(u => u.ClubMemberships.Any(cm =>
+                cm.RoleInClub == Role.ClubAdmin &&
+                cm.Status == MembershipStatus.Approved &&
+                (!category.HasValue || cm.Club.Category == category.Value) &&
+                (string.IsNullOrWhiteSpace(searchTerm) || cm.Club.Name.Contains(searchTerm))));
+        }
+
+        return await query
             .OrderBy(u => u.FullName)
             .Select(u => new UserProfileDto(
                 u.Id, u.FullName, u.Username, u.Email,

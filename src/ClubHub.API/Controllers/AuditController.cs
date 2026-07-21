@@ -11,22 +11,33 @@ namespace ClubHub.API.Controllers;
 public class AuditController : ControllerBase
 {
     private readonly IAuditService _auditService;
+    private readonly IMembershipService _membershipService;
 
-    public AuditController(IAuditService auditService) => _auditService = auditService;
+    public AuditController(IAuditService auditService, IMembershipService membershipService)
+    {
+        _auditService = auditService;
+        _membershipService = membershipService;
+    }
 
-    /// <summary>[Club Admin] Xem lịch sử hoạt động của CLB</summary>
+    /// <summary>[Club Admin] Xem lịch sử hoạt động của CLB (chỉ admin của CLB đó mới xem được)</summary>
     [HttpGet("api/clubs/{clubId:guid}/audit-logs")]
-    [Authorize]
+    [Authorize(Roles = "ClubAdmin")]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<AuditLogDto>>), 200)]
+    [ProducesResponseType(403)]
     public async Task<IActionResult> GetClubAuditLogs(Guid clubId,
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
+        if (!await _membershipService.IsClubAdminAsync(clubId, GetUserId()))
+            return Forbid();
+
         var result = await _auditService.GetClubAuditLogsAsync(clubId, page, pageSize);
         return Ok(ApiResponse.Ok(result));
     }
 
-    /// <summary>Xem lịch sử hoạt động của một entity cụ thể</summary>
+    /// <summary>[University Admin] Xem lịch sử hoạt động của một entity cụ thể</summary>
     [HttpGet("api/audit-logs/{entityType}/{entityId:guid}")]
-    [Authorize]
+    [Authorize(Roles = "UniversityAdmin")]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<AuditLogDto>>), 200)]
     public async Task<IActionResult> GetEntityAuditLogs(string entityType, Guid entityId,
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {

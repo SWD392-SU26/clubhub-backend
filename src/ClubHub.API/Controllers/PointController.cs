@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using ClubHub.API.DTOs.Common;
+using ClubHub.API.DTOs.Point;
 using ClubHub.API.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -18,6 +19,8 @@ public class PointController : ControllerBase
 
     /// <summary>[Club Member] Xem điểm thi đua của mình trong CLB</summary>
     [HttpGet("me")]
+    [ProducesResponseType(typeof(ApiResponse<MyPointSummaryDto>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 404)]
     public async Task<IActionResult> GetMyPoints(Guid clubId)
     {
         var result = await _pointService.GetMyPointsInClubAsync(GetUserId(), clubId);
@@ -26,6 +29,7 @@ public class PointController : ControllerBase
 
     /// <summary>Xem bảng xếp hạng điểm thi đua của CLB</summary>
     [HttpGet("leaderboard")]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<MemberPointDto>>), 200)]
     public async Task<IActionResult> GetLeaderboard(Guid clubId,
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {

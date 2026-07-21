@@ -20,6 +20,8 @@ public class ProposalController : ControllerBase
 
     /// <summary>[Student] Nộp hồ sơ thành lập CLB</summary>
     [HttpPost]
+    [ProducesResponseType(typeof(ApiResponse<ProposalDto>), 201)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> Submit([FromBody] SubmitProposalRequest request)
     {
         var result = await _proposalService.SubmitAsync(request, GetUserId());
@@ -30,6 +32,8 @@ public class ProposalController : ControllerBase
 
     /// <summary>[Student] Sửa hồ sơ (khi còn Pending hoặc NeedsRevision)</summary>
     [HttpPut("{id:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<ProposalDto>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> Update(Guid id, [FromBody] SubmitProposalRequest request)
     {
         var result = await _proposalService.UpdateAsync(id, request, GetUserId());
@@ -40,6 +44,8 @@ public class ProposalController : ControllerBase
 
     /// <summary>[Student] Nộp lại hồ sơ sau khi được yêu cầu bổ sung (lưu revision history)</summary>
     [HttpPut("{id:guid}/resubmit")]
+    [ProducesResponseType(typeof(ApiResponse<ProposalDto>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> Resubmit(Guid id, [FromBody] SubmitProposalRequest request)
     {
         var result = await _proposalService.ResubmitAsync(id, request, GetUserId());
@@ -50,6 +56,7 @@ public class ProposalController : ControllerBase
 
     /// <summary>[Student] Xem hồ sơ của mình</summary>
     [HttpGet("my")]
+    [ProducesResponseType(typeof(ApiResponse<List<ProposalDto>>), 200)]
     public async Task<IActionResult> GetMine()
     {
         var result = await _proposalService.GetMyProposalsAsync(GetUserId());
@@ -58,6 +65,8 @@ public class ProposalController : ControllerBase
 
     /// <summary>Xem chi tiết hồ sơ</summary>
     [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<ProposalDetailDto>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 404)]
     public async Task<IActionResult> GetById(Guid id)
     {
         var result = await _proposalService.GetByIdAsync(id);
@@ -67,6 +76,7 @@ public class ProposalController : ControllerBase
     /// <summary>[University Admin] Xem tất cả hồ sơ</summary>
     [HttpGet]
     [Authorize(Roles = "UniversityAdmin")]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<ProposalDto>>), 200)]
     public async Task<IActionResult> GetAll(
         [FromQuery] string? status,
         [FromQuery] int page = 1,
@@ -79,6 +89,8 @@ public class ProposalController : ControllerBase
     /// <summary>[University Admin] Duyệt hoặc từ chối hồ sơ (khi approve → người nộp lên ClubAdmin)</summary>
     [HttpPut("{id:guid}/review")]
     [Authorize(Roles = "UniversityAdmin")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> Review(Guid id, [FromBody] ReviewProposalRequest request)
     {
         var result = await _proposalService.ReviewAsync(id, request, GetUserId());
@@ -88,6 +100,8 @@ public class ProposalController : ControllerBase
     /// <summary>[University Admin] Yêu cầu bổ sung hồ sơ</summary>
     [HttpPut("{id:guid}/request-revision")]
     [Authorize(Roles = "UniversityAdmin")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> RequestRevision(Guid id, [FromBody] RequestRevisionRequest request)
     {
         var result = await _proposalService.RequestRevisionAsync(id, request, GetUserId());

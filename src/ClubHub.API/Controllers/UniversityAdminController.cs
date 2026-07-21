@@ -29,6 +29,7 @@ public class UniversityAdminController : ControllerBase
 
     /// <summary>Xem danh sách users (phân trang, filter role, loại trừ UniversityAdmin)</summary>
     [HttpGet("users")]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<UserProfileDto>>), 200)]
     public async Task<IActionResult> GetUsers(
         [FromQuery] Role? role,
         [FromQuery] int page = 1,
@@ -40,17 +41,22 @@ public class UniversityAdminController : ControllerBase
 
     /// <summary>Cập nhật trạng thái tài khoản (Active/Inactive/Lock/Deleted)</summary>
     [HttpPut("users/{userId:guid}/status")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> UpdateUserStatus(Guid userId, [FromBody] UpdateUserStatusRequest request)
     {
         var result = await _userManagementService.UpdateUserStatusAsync(userId, request.Status);
         return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
-    /// <summary>Lấy danh sách ClubAdmin để chọn khi tạo CLB</summary>
+    /// <summary>Lấy danh sách ClubAdmin để chọn khi tạo CLB (có filter theo category + search tên club)</summary>
     [HttpGet("club-admins")]
-    public async Task<IActionResult> GetClubAdmins()
+    [ProducesResponseType(typeof(ApiResponse<List<UserProfileDto>>), 200)]
+    public async Task<IActionResult> GetClubAdmins(
+        [FromQuery] ClubCategory? category = null,
+        [FromQuery] string? searchTerm = null)
     {
-        var result = await _clubService.GetClubAdminsAsync();
+        var result = await _clubService.GetClubAdminsAsync(category, searchTerm);
         return Ok(ApiResponse.Ok(result));
     }
 
@@ -58,6 +64,7 @@ public class UniversityAdminController : ControllerBase
 
     /// <summary>Xem toàn bộ CLB (lọc theo trạng thái)</summary>
     [HttpGet("clubs")]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<ClubSummaryDto>>), 200)]
     public async Task<IActionResult> GetAllClubs(
         [FromQuery] ClubStatus? status,
         [FromQuery] ClubCategory? clubcategories,
@@ -70,6 +77,8 @@ public class UniversityAdminController : ControllerBase
 
     /// <summary>Tạo CLB trực tiếp (không qua hồ sơ, chọn ClubAdmin từ danh sách)</summary>
     [HttpPost("clubs")]
+    [ProducesResponseType(typeof(ApiResponse<ClubDetailDto>), 201)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> CreateClubWithAdmin([FromBody] CreateClubWithAdminRequest request)
     {
         var adminId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
@@ -81,6 +90,8 @@ public class UniversityAdminController : ControllerBase
 
     /// <summary>Cập nhật trạng thái CLB (Active/Inactive/Lock/Deleted)</summary>
     [HttpPut("clubs/{clubId:guid}/status")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> UpdateClubStatus(Guid clubId, [FromBody] UpdateClubStatusRequest request)
     {
         var result = await _clubService.UpdateStatusAsync(clubId, request.Status);
@@ -89,6 +100,8 @@ public class UniversityAdminController : ControllerBase
 
     /// <summary>Ẩn CLB (Inactive)</summary>
     [HttpPut("clubs/{clubId:guid}/hide")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> HideClub(Guid clubId)
     {
         var result = await _clubService.HideClubAsync(clubId);
@@ -97,6 +110,8 @@ public class UniversityAdminController : ControllerBase
 
     /// <summary>Khóa CLB</summary>
     [HttpPut("clubs/{clubId:guid}/lock")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> LockClub(Guid clubId)
     {
         var result = await _clubService.LockClubAsync(clubId);
@@ -105,6 +120,8 @@ public class UniversityAdminController : ControllerBase
 
     /// <summary>Mở lại CLB</summary>
     [HttpPut("clubs/{clubId:guid}/reopen")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> ReopenClub(Guid clubId)
     {
         var result = await _clubService.ReopenClubAsync(clubId);
@@ -113,6 +130,8 @@ public class UniversityAdminController : ControllerBase
 
     /// <summary>Giải tán CLB (Deleted)</summary>
     [HttpPut("clubs/{clubId:guid}/dissolve")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> DissolveClub(Guid clubId)
     {
         var result = await _clubService.DissolveClubAsync(clubId);
@@ -121,6 +140,8 @@ public class UniversityAdminController : ControllerBase
 
     /// <summary>Xóa mềm CLB</summary>
     [HttpDelete("clubs/{clubId:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> SoftDeleteClub(Guid clubId)
     {
         var result = await _clubService.DeleteClubAsync(clubId, hardDelete: false);
@@ -129,6 +150,8 @@ public class UniversityAdminController : ControllerBase
 
     /// <summary>Xóa cứng CLB</summary>
     [HttpDelete("clubs/{clubId:guid}/hard")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> HardDeleteClub(Guid clubId)
     {
         var result = await _clubService.DeleteClubAsync(clubId, hardDelete: true);

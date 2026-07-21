@@ -52,6 +52,8 @@ public class AuthController : ControllerBase
 
     /// <summary>Làm mới access token</summary>
     [HttpPost("refresh-token")]
+    [ProducesResponseType(typeof(ApiResponse<LoginResponse>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 401)]
     public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request)
     {
         var result = await _authService.RefreshTokenAsync(request.RefreshToken);
@@ -61,6 +63,8 @@ public class AuthController : ControllerBase
     /// <summary>Đổi mật khẩu</summary>
     [HttpPut("change-password")]
     [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
     {
         var result = await _authService.ChangePasswordAsync(GetUserId(), request);
@@ -69,6 +73,7 @@ public class AuthController : ControllerBase
 
     /// <summary>Quên mật khẩu - gửi OTP về mail</summary>
     [HttpPost("forgot-password")]
+    [ProducesResponseType(typeof(ApiResponse<string>), 200)]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
     {
         await _authService.ForgotPasswordAsync(request);
@@ -77,6 +82,8 @@ public class AuthController : ControllerBase
 
     /// <summary>Đặt lại mật khẩu bằng OTP 6 chữ số gửi qua email</summary>
     [HttpPost("reset-password")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
     {
         var result = await _authService.ResetPasswordAsync(request);
@@ -86,6 +93,8 @@ public class AuthController : ControllerBase
     /// <summary>Xem thông tin cá nhân</summary>
     [HttpGet("me")]
     [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<UserProfileDto>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 404)]
     public async Task<IActionResult> GetProfile()
     {
         var result = await _authService.GetProfileAsync(GetUserId());
@@ -95,6 +104,8 @@ public class AuthController : ControllerBase
     /// <summary>Cập nhật thông tin cá nhân</summary>
     [HttpPut("me")]
     [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<UserProfileDto>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
     {
         var result = await _authService.UpdateProfileAsync(GetUserId(), request);

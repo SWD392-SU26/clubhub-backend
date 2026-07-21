@@ -22,6 +22,6 @@ public interface IClubService
     Task<PagedResult<ClubSummaryDto>> GetMyClubsAsync(Guid userId, int page, int pageSize);
     Task<PagedResult<ClubSummaryDto>> GetAllByStatusAsync(ClubStatus? status, ClubCategory? clubcategories, int page, int pageSize);
     /// <summary>Lấy danh sách ClubAdmin để UniAdmin chọn khi tạo CLB</summary>
-    Task<List<UserProfileDto>> GetClubAdminsAsync();
+    Task<List<UserProfileDto>> GetClubAdminsAsync(ClubCategory? category = null, string? searchTerm = null);
     Task<ApiResult<bool>> UpdateStatusAsync(Guid clubId, ClubStatus status);
 }

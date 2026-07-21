@@ -64,6 +64,7 @@ public record ClubDetailDto(
     string Status,
     int MemberCount,
     List<ClubOfficerDto> Officers,
+    List<ClubMemberDetailDto> Members,
     DateTime CreatedAt
 );
 
@@ -72,4 +73,14 @@ public record ClubOfficerDto(
     string FullName,
     string? AvatarUrl,
     string RoleInClub
+);
+
+public record ClubMemberDetailDto(
+    Guid Id,
+    Guid UserId,
+    string FullName,
+    string? AvatarUrl,
+    string? StudentCode,
+    string RoleInClub,
+    DateTime? JoinedAt
 );
