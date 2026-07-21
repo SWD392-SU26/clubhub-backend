@@ -60,10 +60,11 @@ public class UniversityAdminController : ControllerBase
     [HttpGet("clubs")]
     public async Task<IActionResult> GetAllClubs(
         [FromQuery] ClubStatus? status,
+        [FromQuery] ClubCategory? clubcategories,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10)
     {
-        var result = await _clubService.GetAllByStatusAsync(status, page, pageSize);
+        var result = await _clubService.GetAllByStatusAsync(status, clubcategories, page, pageSize);
         return Ok(ApiResponse.Ok(result));
     }
 

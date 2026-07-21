@@ -46,7 +46,7 @@ public class ClubService : IClubService
         return new PagedResult<ClubSummaryDto>(items, filter.Page, filter.PageSize, total);
     }
 
-    public async Task<PagedResult<ClubSummaryDto>> GetAllByStatusAsync(ClubStatus? status, int page, int pageSize)
+    public async Task<PagedResult<ClubSummaryDto>> GetAllByStatusAsync(ClubStatus? status, ClubCategory? clubcategories, int page, int pageSize)
     {
         var query = _uow.Clubs.QueryAllClubs();
 
