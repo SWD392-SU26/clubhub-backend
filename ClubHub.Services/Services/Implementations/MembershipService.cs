@@ -36,6 +36,11 @@ public class MembershipService : IMembershipService
                 return ApiResult<bool>.Failure("Bạn đã là thành viên của CLB này.");
         }
 
+        if (existing != null && existing.Status != MembershipStatus.Pending)
+        {
+            throw new InvalidOperationException("Unexpected membership status for existing membership.");
+        }
+
         var membership = new ClubMember
         {
             UserId = userId,
@@ -59,7 +64,7 @@ public class MembershipService : IMembershipService
         if (membership == null || membership.Status != MembershipStatus.Pending)
             return ApiResult<bool>.Failure("Không tìm thấy đơn tham gia đang chờ xử lý.");
 
-        membership.Status = MembershipStatus.Cancelled;
+        membership.Status = MembershipStatus.Cancelled;        
         membership.ReviewedAt = DateTime.UtcNow;
         await _uow.SaveChangesAsync();
 
