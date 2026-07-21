@@ -19,15 +19,17 @@ public class AuditController : ControllerBase
         _membershipService = membershipService;
     }
 
-    /// <summary>[Club Admin] Xem lịch sử hoạt động của CLB (chỉ admin của CLB đó mới xem được)</summary>
+    /// <summary>[Club Admin / University Admin] Xem lịch sử hoạt động của CLB</summary>
     [HttpGet("api/clubs/{clubId:guid}/audit-logs")]
-    [Authorize(Roles = "ClubAdmin")]
+    [Authorize(Roles = "ClubAdmin,UniversityAdmin")]
     [ProducesResponseType(typeof(ApiResponse<PagedResult<AuditLogDto>>), 200)]
     [ProducesResponseType(403)]
     public async Task<IActionResult> GetClubAuditLogs(Guid clubId,
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
-        if (!await _membershipService.IsClubAdminAsync(clubId, GetUserId()))
+        // UniversityAdmin auto allowed, ClubAdmin phải là admin của CLB đó
+        if (!User.IsInRole("UniversityAdmin") &&
+            !await _membershipService.IsClubAdminAsync(clubId, GetUserId()))
             return Forbid();
 
         var result = await _auditService.GetClubAuditLogsAsync(clubId, page, pageSize);
