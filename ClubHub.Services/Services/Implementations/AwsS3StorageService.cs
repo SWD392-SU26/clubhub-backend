@@ -34,8 +34,7 @@ public class AwsS3StorageService : IStorageService
             BucketName = _bucketName,
             Key = key,
             InputStream = fileStream,
-            ContentType = contentType,
-            CannedACL = S3CannedACL.PublicRead
+            ContentType = contentType
         };
 
         await _s3Client.PutObjectAsync(request);
