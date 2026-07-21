@@ -99,44 +99,44 @@ public class UniversityAdminController : ControllerBase
     }
 
     /// <summary>Ẩn CLB (Inactive)</summary>
-    [HttpPut("clubs/{clubId:guid}/hide")]
-    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
-    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
-    public async Task<IActionResult> HideClub(Guid clubId)
-    {
-        var result = await _clubService.HideClubAsync(clubId);
-        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
-    }
+    //[HttpPut("clubs/{clubId:guid}/hide")]
+    //[ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+    //[ProducesResponseType(typeof(ApiResponse<object>), 400)]
+    //public async Task<IActionResult> HideClub(Guid clubId)
+    //{
+    //    var result = await _clubService.HideClubAsync(clubId);
+    //    return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
+    //}
 
     /// <summary>Khóa CLB</summary>
-    [HttpPut("clubs/{clubId:guid}/lock")]
-    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
-    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
-    public async Task<IActionResult> LockClub(Guid clubId)
-    {
-        var result = await _clubService.LockClubAsync(clubId);
-        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
-    }
+    //[HttpPut("clubs/{clubId:guid}/lock")]
+    //[ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+    //[ProducesResponseType(typeof(ApiResponse<object>), 400)]
+    //public async Task<IActionResult> LockClub(Guid clubId)
+    //{
+    //    var result = await _clubService.LockClubAsync(clubId);
+    //    return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
+    //}
 
     /// <summary>Mở lại CLB</summary>
-    [HttpPut("clubs/{clubId:guid}/reopen")]
-    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
-    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
-    public async Task<IActionResult> ReopenClub(Guid clubId)
-    {
-        var result = await _clubService.ReopenClubAsync(clubId);
-        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
-    }
+    //[HttpPut("clubs/{clubId:guid}/reopen")]
+    //[ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+    //[ProducesResponseType(typeof(ApiResponse<object>), 400)]
+    //public async Task<IActionResult> ReopenClub(Guid clubId)
+    //{
+    //    var result = await _clubService.ReopenClubAsync(clubId);
+    //    return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
+    //}
 
     /// <summary>Giải tán CLB (Deleted)</summary>
-    [HttpPut("clubs/{clubId:guid}/dissolve")]
-    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
-    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
-    public async Task<IActionResult> DissolveClub(Guid clubId)
-    {
-        var result = await _clubService.DissolveClubAsync(clubId);
-        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
-    }
+    //[HttpPut("clubs/{clubId:guid}/dissolve")]
+    //[ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+    //[ProducesResponseType(typeof(ApiResponse<object>), 400)]
+    //public async Task<IActionResult> DissolveClub(Guid clubId)
+    //{
+    //    var result = await _clubService.DissolveClubAsync(clubId);
+    //    return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
+    //}
 
     /// <summary>Xóa mềm CLB</summary>
     [HttpDelete("clubs/{clubId:guid}")]
