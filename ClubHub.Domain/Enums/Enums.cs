@@ -81,3 +81,12 @@ public enum RequestStatus
     Approve,
     Rejected
 }
+
+/// <summary>Trạng thái hoạt động nội bộ của CLB</summary>
+public enum ActivityStatus
+{
+    Upcoming,
+    InProgress,
+    Completed,
+    Cancelled
+}

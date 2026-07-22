@@ -96,6 +96,9 @@ builder.Services.AddScoped<IUserManagementService, UserManagementService>();
 // ── AWS S3 Storage Service ─────────────────────────────────────────────────────
 builder.Services.AddScoped<IStorageService, AwsS3StorageService>();
 
+// ── Internal Club Activity Services ────────────────────────────────────────────
+builder.Services.AddScoped<IActivityService, ActivityService>();
+
 // ── Controllers ───────────────────────────────────────────────────────────────
 builder.Services.AddControllers(opts =>
 {

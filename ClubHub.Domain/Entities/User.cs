@@ -56,4 +56,5 @@ public class User
     public ICollection<Feedback> Feedbacks { get; set; } = new List<Feedback>();
     public ICollection<PointTransaction> PointTransactions { get; set; } = new List<PointTransaction>();
     public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
+    public ICollection<ActivityRegistration> ActivityRegistrations { get; set; } = new List<ActivityRegistration>();
 }

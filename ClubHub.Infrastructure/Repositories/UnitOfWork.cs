@@ -18,6 +18,8 @@ public class UnitOfWork : IUnitOfWork
     private IGenericRepository<Notification>? _notifications;
     private IGenericRepository<ProposalRevision>? _proposalRevisions;
     private IGenericRepository<AuditLog>? _auditLogs;
+    private IGenericRepository<ClubActivity>? _activities;
+    private IGenericRepository<ActivityRegistration>? _activityRegistrations;
 
     public UnitOfWork(AppDbContext context)
     {
@@ -35,6 +37,8 @@ public class UnitOfWork : IUnitOfWork
     public IGenericRepository<Notification> Notifications => _notifications ??= new GenericRepository<Notification>(_context);
     public IGenericRepository<ProposalRevision> ProposalRevisions => _proposalRevisions ??= new GenericRepository<ProposalRevision>(_context);
     public IGenericRepository<AuditLog> AuditLogs => _auditLogs ??= new GenericRepository<AuditLog>(_context);
+    public IGenericRepository<ClubActivity> Activities => _activities ??= new GenericRepository<ClubActivity>(_context);
+    public IGenericRepository<ActivityRegistration> ActivityRegistrations => _activityRegistrations ??= new GenericRepository<ActivityRegistration>(_context);
 
     public async Task<int> SaveChangesAsync() => await _context.SaveChangesAsync();
 

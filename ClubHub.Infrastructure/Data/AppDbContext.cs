@@ -19,6 +19,8 @@ public class AppDbContext : DbContext
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<ProposalRevision> ProposalRevisions => Set<ProposalRevision>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<ClubActivity> ClubActivities => Set<ClubActivity>();
+    public DbSet<ActivityRegistration> ActivityRegistrations => Set<ActivityRegistration>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -186,6 +188,41 @@ public class AppDbContext : DbContext
              .WithMany()
              .HasForeignKey(al => al.PerformedBy)
              .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // ── ClubActivity ────────────────────────────────────────────────────────
+        modelBuilder.Entity<ClubActivity>(e =>
+        {
+            e.HasKey(a => a.Id);
+            e.Property(a => a.Type).HasMaxLength(100);
+            e.Property(a => a.Status).HasConversion<string>();
+
+            e.HasOne(a => a.Club)
+             .WithMany(c => c.Activities)
+             .HasForeignKey(a => a.ClubId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(a => a.Creator)
+             .WithMany()
+             .HasForeignKey(a => a.CreatedBy)
+             .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ── ActivityRegistration ──────────────────────────────────────────────────
+        modelBuilder.Entity<ActivityRegistration>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.HasIndex(r => new { r.ActivityId, r.UserId }).IsUnique();
+
+            e.HasOne(r => r.Activity)
+             .WithMany(a => a.Registrations)
+             .HasForeignKey(r => r.ActivityId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(r => r.User)
+             .WithMany(u => u.ActivityRegistrations)
+             .HasForeignKey(r => r.UserId)
+             .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }
