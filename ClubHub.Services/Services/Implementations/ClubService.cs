@@ -53,6 +53,9 @@ public class ClubService : IClubService
         if (status.HasValue)
             query = query.Where(c => c.Status == status.Value);
 
+        if (clubcategories.HasValue)
+            query = query.Where(c => c.Category == clubcategories.Value);
+
         var total = await query.CountAsync();
         var items = await query
             .OrderBy(c => c.Name)
