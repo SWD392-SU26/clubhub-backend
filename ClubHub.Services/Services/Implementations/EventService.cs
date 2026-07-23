@@ -9,6 +9,15 @@ namespace ClubHub.API.Services.Interfaces;
 
 public class EventService : IEventService
 {
+    private static readonly Dictionary<EventStatus, HashSet<EventStatus>> _validTransitions = new()
+    {
+        { EventStatus.Draft,     [EventStatus.Published, EventStatus.Cancelled] },
+        { EventStatus.Published, [EventStatus.Ongoing,   EventStatus.Cancelled] },
+        { EventStatus.Ongoing,   [EventStatus.Completed, EventStatus.Cancelled] },
+        { EventStatus.Completed, [] },
+        { EventStatus.Cancelled, [] },
+    };
+
     private readonly IUnitOfWork _uow;
     private readonly IPointService _pointService;
     private readonly INotificationService _notificationService;
@@ -22,6 +31,9 @@ public class EventService : IEventService
         _notificationService = notificationService;
         _auditService = auditService;
     }
+
+    private static bool CanTransition(EventStatus from, EventStatus to)
+        => _validTransitions.TryGetValue(from, out var allowed) && allowed.Contains(to);
 
     public async Task<PagedResult<EventDto>> GetAllEventsAsync(Guid? clubId, int page, int pageSize)
     {
@@ -123,6 +135,10 @@ public class EventService : IEventService
         if (ev.Status is EventStatus.Completed or EventStatus.Cancelled)
             return ApiResult<EventDto>.Failure("Không thể chỉnh sửa sự kiện đã kết thúc hoặc đã hủy.");
 
+        if (req.Status.HasValue && !CanTransition(ev.Status, req.Status.Value))
+            return ApiResult<EventDto>.Failure(
+                $"Không thể chuyển trạng thái từ '{ev.Status}' sang '{req.Status}'.");
+
         if (req.Name != null) ev.Name = req.Name;
         if (req.Description != null) ev.Description = req.Description;
         if (req.Location != null) ev.Location = req.Location;
@@ -149,6 +165,9 @@ public class EventService : IEventService
 
         if (!await IsClubAdminAsync(ev.ClubId, requesterId))
             return ApiResult<bool>.Failure("Bạn không có quyền xóa sự kiện này.");
+
+        if (!CanTransition(ev.Status, EventStatus.Cancelled))
+            return ApiResult<bool>.Failure("Không thể hủy sự kiện đã kết thúc.");
 
         ev.Status = EventStatus.Cancelled;
         await _uow.SaveChangesAsync();
