@@ -50,6 +50,8 @@ public class ClubController : ControllerBase
     /// <summary>[Club Admin] Cập nhật thông tin CLB</summary>
     [HttpPut("{clubId:guid}")]
     [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<ClubDetailDto>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> UpdateClub(Guid clubId, [FromBody] UpdateClubRequest request)
     {
         var result = await _clubService.UpdateClubAsync(clubId, request, GetUserId());

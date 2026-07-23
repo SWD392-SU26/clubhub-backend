@@ -15,6 +15,8 @@ public interface IUnitOfWork : IDisposable
     IGenericRepository<Notification> Notifications { get; }
     IGenericRepository<ProposalRevision> ProposalRevisions { get; }
     IGenericRepository<AuditLog> AuditLogs { get; }
+    IGenericRepository<ClubActivity> Activities { get; }
+    IGenericRepository<ActivityRegistration> ActivityRegistrations { get; }
 
     Task<int> SaveChangesAsync();
 }

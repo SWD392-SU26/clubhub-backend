@@ -17,14 +17,27 @@ public class AuthController : ControllerBase
 
     public AuthController(IAuthService authService) => _authService = authService;
 
-    /// <summary>Đăng ký tài khoản mới</summary>
+    /// <summary>Đăng ký tài khoản mới (gửi OTP về email để verify)</summary>
     [HttpPost("register")]
-    [ProducesResponseType(typeof(ApiResponse<LoginResponse>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
     [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
     {
         var result = await _authService.RegisterAsync(request);
-        return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data!)) : BadRequest(ApiResponse.Fail(result.Error!));
+        return result.IsSuccess
+            ? Ok(ApiResponse.Ok(result.Data, "Đăng ký thành công. Vui lòng kiểm tra email để lấy mã OTP xác thực."))
+            : BadRequest(ApiResponse.Fail(result.Error!));
+    }
+
+    /// <summary>Xác thực email bằng OTP (sau khi đăng ký hoặc quên mật khẩu)</summary>
+    [HttpPost("verify-email")]
+    [ProducesResponseType(typeof(ApiResponse<LoginResponse>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
+    public async Task<IActionResult> VerifyEmail([FromBody] VerifyOtpRequest request)
+    {
+        var result = await _authService.VerifyEmailOtpAsync(request);
+        //return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data!)) : BadRequest(ApiResponse.Fail(result.Error!));
+        return result.IsSuccess ? Ok(ApiResponse.Ok("Verify successfully")) : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
     /// <summary>Đăng nhập</summary>
@@ -39,6 +52,8 @@ public class AuthController : ControllerBase
 
     /// <summary>Làm mới access token</summary>
     [HttpPost("refresh-token")]
+    [ProducesResponseType(typeof(ApiResponse<LoginResponse>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 401)]
     public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request)
     {
         var result = await _authService.RefreshTokenAsync(request.RefreshToken);
@@ -48,22 +63,27 @@ public class AuthController : ControllerBase
     /// <summary>Đổi mật khẩu</summary>
     [HttpPut("change-password")]
     [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
     {
         var result = await _authService.ChangePasswordAsync(GetUserId(), request);
         return result.IsSuccess ? Ok(ApiResponse.Ok(result.Data)) : BadRequest(ApiResponse.Fail(result.Error!));
     }
 
-    /// <summary>Quên mật khẩu - gửi email reset</summary>
+    /// <summary>Quên mật khẩu - gửi OTP về mail</summary>
     [HttpPost("forgot-password")]
+    [ProducesResponseType(typeof(ApiResponse<string>), 200)]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
     {
         await _authService.ForgotPasswordAsync(request);
-        return Ok(ApiResponse.Ok<string>(null!, "Nếu email tồn tại, link reset đã được gửi."));
+        return Ok(ApiResponse.Ok<string>(null!, "Nếu email tồn tại, mã OTP đã được gửi về email của bạn."));
     }
 
-    /// <summary>Reset mật khẩu bằng token</summary>
+    /// <summary>Đặt lại mật khẩu bằng OTP 6 chữ số gửi qua email</summary>
     [HttpPost("reset-password")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
     {
         var result = await _authService.ResetPasswordAsync(request);
@@ -73,6 +93,8 @@ public class AuthController : ControllerBase
     /// <summary>Xem thông tin cá nhân</summary>
     [HttpGet("me")]
     [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<UserProfileDto>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 404)]
     public async Task<IActionResult> GetProfile()
     {
         var result = await _authService.GetProfileAsync(GetUserId());
@@ -82,6 +104,8 @@ public class AuthController : ControllerBase
     /// <summary>Cập nhật thông tin cá nhân</summary>
     [HttpPut("me")]
     [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<UserProfileDto>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
     {
         var result = await _authService.UpdateProfileAsync(GetUserId(), request);

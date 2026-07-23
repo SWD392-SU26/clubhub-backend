@@ -19,6 +19,9 @@ public static class ApiResponse
     public static ApiResponse<T> Ok<T>(T data, string? message = null)
         => new(true, message, data);
 
+    public static ApiResponse<object?> Ok(string? message = null)
+        => new(true, message, null);
+
     public static ApiResponse<object> Fail(string message)
         => new(false, message, null);
 }

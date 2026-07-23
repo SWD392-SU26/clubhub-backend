@@ -9,7 +9,8 @@ public class ClubMember
     public Guid UserId { get; set; }
     public Guid ClubId { get; set; }
 
-    public ClubRole RoleInClub { get; set; } = ClubRole.Member;
+    /// <summary>Vai trò trong CLB: ClubMember hoặc ClubAdmin</summary>
+    public Role RoleInClub { get; set; } = Role.ClubMember;
     public MembershipStatus Status { get; set; } = MembershipStatus.Pending;
 
     public string? JoinReason { get; set; }

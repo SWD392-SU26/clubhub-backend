@@ -27,15 +27,27 @@ public class User
 
     public string? AvatarUrl { get; set; }
 
-    public SystemRole SystemRole { get; set; } = SystemRole.Student;
+    /// <summary>Ảnh bìa (cover photo) giống Facebook</summary>
+    public string? CoverUrl { get; set; }
 
-    public bool IsActive { get; set; } = true;
+    /// <summary>Vai trò hợp nhất: Student, ClubMember, ClubAdmin, UniversityAdmin</summary>
+    public Role Role { get; set; } = Role.Student;
+
+    /// <summary>Trạng thái tài khoản: Active, Inactive, Lock, Deleted</summary>
+    public UserStatus Status { get; set; } = UserStatus.Active;
+
+    public bool IsEmailVerified { get; set; } = false;
+
+    // OTP fields for email verification on register
+    public string? EmailVerifyOtp { get; set; }
+    public DateTime? EmailVerifyOtpExpiry { get; set; }
+
+    // OTP fields for forgot password
+    public string? PasswordResetOtp { get; set; }
+    public DateTime? PasswordResetOtpExpiry { get; set; }
 
     public string? RefreshToken { get; set; }
     public DateTime? RefreshTokenExpiry { get; set; }
-
-    public string? PasswordResetToken { get; set; }
-    public DateTime? PasswordResetTokenExpiry { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
@@ -47,4 +59,5 @@ public class User
     public ICollection<Feedback> Feedbacks { get; set; } = new List<Feedback>();
     public ICollection<PointTransaction> PointTransactions { get; set; } = new List<PointTransaction>();
     public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
+    public ICollection<ActivityRegistration> ActivityRegistrations { get; set; } = new List<ActivityRegistration>();
 }

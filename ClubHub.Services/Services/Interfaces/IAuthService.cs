@@ -4,7 +4,8 @@ namespace ClubHub.API.Services.Interfaces;
 
 public interface IAuthService
 {
-    Task<ApiResult<LoginResponse>> RegisterAsync(RegisterRequest request);
+    Task<ApiResult<bool>> RegisterAsync(RegisterRequest request);
+    Task<ApiResult<LoginResponse>> VerifyEmailOtpAsync(VerifyOtpRequest request);
     Task<ApiResult<LoginResponse>> LoginAsync(LoginRequest request);
     Task<ApiResult<LoginResponse>> RefreshTokenAsync(string refreshToken);
     Task<ApiResult<bool>> ChangePasswordAsync(Guid userId, ChangePasswordRequest request);

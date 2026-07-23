@@ -4,6 +4,7 @@ using ClubHub.API.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ClubHub.API.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260714164338_UnifyRolesAndOtpAuth")]
+    partial class UnifyRolesAndOtpAuth
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,46 +24,6 @@ namespace ClubHub.API.Data.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
-
-            modelBuilder.Entity("ClubHub.API.Entities.ActivityRegistration", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("ActivityId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("CancelledAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("CheckInTime")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsCancelled")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsCheckedIn")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Note")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("RegisteredAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("ActivityId", "UserId")
-                        .IsUnique();
-
-                    b.ToTable("ActivityRegistrations");
-                });
 
             modelBuilder.Entity("ClubHub.API.Entities.AuditLog", b =>
                 {
@@ -158,74 +121,6 @@ namespace ClubHub.API.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("Clubs");
-                });
-
-            modelBuilder.Entity("ClubHub.API.Entities.ClubActivity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int?>("Capacity")
-                        .HasColumnType("int");
-
-                    b.Property<int>("CheckInPoints")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("ClubId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<DateTime>("EndTime")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("ImageUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("Location")
-                        .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
-
-                    b.Property<DateTime?>("RegistrationDeadline")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("StartTime")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ClubId");
-
-                    b.HasIndex("CreatedBy");
-
-                    b.ToTable("ClubActivities");
                 });
 
             modelBuilder.Entity("ClubHub.API.Entities.ClubMember", b =>
@@ -401,10 +296,6 @@ namespace ClubHub.API.Data.Migrations
 
                     b.Property<DateTime>("EndTime")
                         .HasColumnType("datetime2");
-
-                    b.Property<string>("ImageUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("Location")
                         .HasMaxLength(300)
@@ -671,9 +562,6 @@ namespace ClubHub.API.Data.Migrations
                     b.Property<string>("AvatarUrl")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("CoverUrl")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -747,25 +635,6 @@ namespace ClubHub.API.Data.Migrations
                     b.ToTable("Users");
                 });
 
-            modelBuilder.Entity("ClubHub.API.Entities.ActivityRegistration", b =>
-                {
-                    b.HasOne("ClubHub.API.Entities.ClubActivity", "Activity")
-                        .WithMany("Registrations")
-                        .HasForeignKey("ActivityId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ClubHub.API.Entities.User", "User")
-                        .WithMany("ActivityRegistrations")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Activity");
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("ClubHub.API.Entities.AuditLog", b =>
                 {
                     b.HasOne("ClubHub.API.Entities.User", "Performer")
@@ -783,25 +652,6 @@ namespace ClubHub.API.Data.Migrations
                         .HasForeignKey("CreatedBy")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.Navigation("Creator");
-                });
-
-            modelBuilder.Entity("ClubHub.API.Entities.ClubActivity", b =>
-                {
-                    b.HasOne("ClubHub.API.Entities.Club", "Club")
-                        .WithMany("Activities")
-                        .HasForeignKey("ClubId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ClubHub.API.Entities.User", "Creator")
-                        .WithMany()
-                        .HasForeignKey("CreatedBy")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Club");
 
                     b.Navigation("Creator");
                 });
@@ -943,18 +793,11 @@ namespace ClubHub.API.Data.Migrations
 
             modelBuilder.Entity("ClubHub.API.Entities.Club", b =>
                 {
-                    b.Navigation("Activities");
-
                     b.Navigation("Events");
 
                     b.Navigation("Members");
 
                     b.Navigation("PointTransactions");
-                });
-
-            modelBuilder.Entity("ClubHub.API.Entities.ClubActivity", b =>
-                {
-                    b.Navigation("Registrations");
                 });
 
             modelBuilder.Entity("ClubHub.API.Entities.Event", b =>
@@ -966,8 +809,6 @@ namespace ClubHub.API.Data.Migrations
 
             modelBuilder.Entity("ClubHub.API.Entities.User", b =>
                 {
-                    b.Navigation("ActivityRegistrations");
-
                     b.Navigation("ClubMemberships");
 
                     b.Navigation("EventRegistrations");

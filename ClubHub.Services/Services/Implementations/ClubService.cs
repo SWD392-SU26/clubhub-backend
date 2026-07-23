@@ -1,3 +1,4 @@
+using ClubHub.API.DTOs.Auth;
 using ClubHub.API.DTOs.Club;
 using ClubHub.API.DTOs.Common;
 using ClubHub.API.Entities;
@@ -45,12 +46,15 @@ public class ClubService : IClubService
         return new PagedResult<ClubSummaryDto>(items, filter.Page, filter.PageSize, total);
     }
 
-    public async Task<PagedResult<ClubSummaryDto>> GetAllByStatusAsync(ClubStatus? status, int page, int pageSize)
+    public async Task<PagedResult<ClubSummaryDto>> GetAllByStatusAsync(ClubStatus? status, ClubCategory? clubcategories, int page, int pageSize)
     {
         var query = _uow.Clubs.QueryAllClubs();
 
         if (status.HasValue)
             query = query.Where(c => c.Status == status.Value);
+
+        if (clubcategories.HasValue)
+            query = query.Where(c => c.Category == clubcategories.Value);
 
         var total = await query.CountAsync();
         var items = await query
@@ -73,17 +77,28 @@ public class ClubService : IClubService
 
         if (club == null) return null;
 
-        var officers = club.Members
-            .Where(m => m.RoleInClub != ClubRole.Member)
+        var approvedMembers = club.Members
+            .Where(m => m.Status == MembershipStatus.Approved)
+            .ToList();
+
+        var officers = approvedMembers
+            .Where(m => m.RoleInClub == Role.ClubAdmin)
             .Select(m => new ClubOfficerDto(m.UserId, m.User.FullName, m.User.AvatarUrl, m.RoleInClub.ToString()))
+            .ToList();
+
+        var members = approvedMembers
+            .Select(m => new ClubMemberDetailDto(
+                m.Id, m.UserId, m.User.FullName, m.User.AvatarUrl,
+                m.User.StudentCode, m.RoleInClub.ToString(), m.JoinedAt))
             .ToList();
 
         return new ClubDetailDto(
             club.Id, club.Name, club.Category.ToString(), club.Description,
             club.LogoUrl, club.CoverImageUrl, club.Status.ToString(),
-            club.Members.Count, officers, club.CreatedAt);
+            approvedMembers.Count, officers, members, club.CreatedAt);
     }
 
+    /// <summary>Tạo CLB, thêm người tạo làm ClubAdmin (dùng nội bộ và từ Proposal)</summary>
     public async Task<ApiResult<ClubDetailDto>> CreateClubAsync(CreateClubRequest req, Guid createdBy)
     {
         var club = new Club
@@ -98,17 +113,57 @@ public class ClubService : IClubService
 
         _uow.Clubs.Add(club);
 
-        // Auto-add creator as President
+        // Auto-add creator as ClubAdmin in this club
         _uow.ClubMembers.Add(new ClubMember
         {
             UserId = createdBy,
             ClubId = club.Id,
-            RoleInClub = ClubRole.President,
+            RoleInClub = Role.ClubAdmin,
             Status = MembershipStatus.Approved,
             JoinedAt = DateTime.UtcNow
         });
 
         await _uow.SaveChangesAsync();
+        var detail = await GetByIdAsync(club.Id);
+        return ApiResult<ClubDetailDto>.Success(detail!);
+    }
+
+    /// <summary>UniversityAdmin tạo CLB và chỉ định ClubAdmin (Role.ClubAdmin) từ select list</summary>
+    public async Task<ApiResult<ClubDetailDto>> CreateClubWithAdminAsync(CreateClubWithAdminRequest req, Guid createdByUniAdmin)
+    {
+        // Validate that selected user exists and is a ClubAdmin
+        var adminUser = await _uow.Users.GetByIdAsync(req.ClubAdminUserId);
+        if (adminUser == null)
+            return ApiResult<ClubDetailDto>.Failure("Người dùng được chỉ định không tồn tại.");
+        if (adminUser.Role != Role.ClubAdmin)
+            return ApiResult<ClubDetailDto>.Failure("Người dùng được chỉ định phải có vai trò ClubAdmin.");
+
+        var club = new Club
+        {
+            Name = req.Name,
+            Category = req.Category,
+            Description = req.Description,
+            LogoUrl = req.LogoUrl,
+            CoverImageUrl = req.CoverImageUrl,
+            CreatedBy = createdByUniAdmin
+        };
+
+        _uow.Clubs.Add(club);
+
+        _uow.ClubMembers.Add(new ClubMember
+        {
+            UserId = req.ClubAdminUserId,
+            ClubId = club.Id,
+            RoleInClub = Role.ClubAdmin,
+            Status = MembershipStatus.Approved,
+            JoinedAt = DateTime.UtcNow
+        });
+
+        await _uow.SaveChangesAsync();
+
+        await _auditService.LogAsync("Club", club.Id, "CreateWithAdmin", createdByUniAdmin,
+            null, club.Id, null, $"Tạo CLB {club.Name} với ClubAdmin: {adminUser.FullName}");
+
         var detail = await GetByIdAsync(club.Id);
         return ApiResult<ClubDetailDto>.Success(detail!);
     }
@@ -132,17 +187,22 @@ public class ClubService : IClubService
         return ApiResult<ClubDetailDto>.Success(detail!);
     }
 
+    public async Task<ApiResult<bool>> UpdateStatusAsync(Guid clubId, ClubStatus status)
+    {
+        return await ChangeStatusAsync(clubId, status);
+    }
+
     public async Task<ApiResult<bool>> HideClubAsync(Guid clubId)
     {
-        var result = await ChangeStatusAsync(clubId, ClubStatus.Hidden);
+        var result = await ChangeStatusAsync(clubId, ClubStatus.Inactive);
         if (result.IsSuccess)
-            await _auditService.LogAsync("Club", clubId, "Hide", null, null, clubId, null, "CLB bị ẩn");
+            await _auditService.LogAsync("Club", clubId, "Hide", null, null, clubId, null, "CLB bị ẩn (Inactive)");
         return result;
     }
 
     public async Task<ApiResult<bool>> LockClubAsync(Guid clubId)
     {
-        var result = await ChangeStatusAsync(clubId, ClubStatus.Locked);
+        var result = await ChangeStatusAsync(clubId, ClubStatus.Lock);
         if (result.IsSuccess)
             await _auditService.LogAsync("Club", clubId, "Lock", null, null, clubId, null, "CLB bị khóa");
         return result;
@@ -150,7 +210,7 @@ public class ClubService : IClubService
 
     public async Task<ApiResult<bool>> ArchiveClubAsync(Guid clubId)
     {
-        var result = await ChangeStatusAsync(clubId, ClubStatus.Archived);
+        var result = await ChangeStatusAsync(clubId, ClubStatus.Inactive);
         if (result.IsSuccess)
             await _auditService.LogAsync("Club", clubId, "Archive", null, null, clubId, null, "CLB được lưu trữ");
         return result;
@@ -160,8 +220,8 @@ public class ClubService : IClubService
     {
         var club = await _uow.Clubs.GetByIdAsync(clubId);
         if (club == null) return ApiResult<bool>.Failure("CLB không tồn tại.");
-        if (club.Status != ClubStatus.Archived && club.Status != ClubStatus.Hidden)
-            return ApiResult<bool>.Failure("Chỉ có thể mở lại CLB đang ở trạng thái Archived hoặc Hidden.");
+        if (club.Status == ClubStatus.Active)
+            return ApiResult<bool>.Failure("CLB đang ở trạng thái Active rồi.");
 
         club.Status = ClubStatus.Active;
         club.UpdatedAt = DateTime.UtcNow;
@@ -173,28 +233,10 @@ public class ClubService : IClubService
 
     public async Task<ApiResult<bool>> DissolveClubAsync(Guid clubId)
     {
-        var club = await _uow.Clubs.GetByIdAsync(clubId);
-        if (club == null) return ApiResult<bool>.Failure("CLB không tồn tại.");
-        if (club.Status == ClubStatus.Dissolved)
-            return ApiResult<bool>.Failure("CLB đã giải tán.");
-
-        // Mark all members as Left when club is dissolved
-        var members = await _uow.ClubMembers.Query()
-            .Where(m => m.ClubId == clubId && m.Status == MembershipStatus.Approved)
-            .ToListAsync();
-
-        foreach (var m in members)
-        {
-            m.Status = MembershipStatus.Left;
-            m.LeftAt = DateTime.UtcNow;
-        }
-
-        club.Status = ClubStatus.Dissolved;
-        club.UpdatedAt = DateTime.UtcNow;
-        await _uow.SaveChangesAsync();
-
-        await _auditService.LogAsync("Club", clubId, "Dissolve", null, null, clubId, null, "CLB giải tán");
-        return ApiResult<bool>.Success(true);
+        var result = await ChangeStatusAsync(clubId, ClubStatus.Deleted);
+        if (result.IsSuccess)
+            await _auditService.LogAsync("Club", clubId, "Dissolve", null, null, clubId, null, "CLB bị giải tán");
+        return result;
     }
 
     public async Task<ApiResult<bool>> DeleteClubAsync(Guid clubId, bool hardDelete = false)
@@ -234,6 +276,31 @@ public class ClubService : IClubService
             .ToListAsync();
 
         return new PagedResult<ClubSummaryDto>(items, page, pageSize, total);
+    }
+
+    /// <summary>Lấy danh sách người dùng có Role = ClubAdmin để UniAdmin chọn khi tạo CLB</summary>
+    public async Task<List<UserProfileDto>> GetClubAdminsAsync(ClubCategory? category = null, string? searchTerm = null)
+    {
+        var query = _uow.Users.Query()
+            .Where(u => u.Role == Role.ClubAdmin && u.Status == UserStatus.Active);
+
+        // Nếu có filter theo category hoặc search tên club → join với ClubMembers + Clubs
+        if (category.HasValue || !string.IsNullOrWhiteSpace(searchTerm))
+        {
+            query = query.Where(u => u.ClubMemberships.Any(cm =>
+                cm.RoleInClub == Role.ClubAdmin &&
+                cm.Status == MembershipStatus.Approved &&
+                (!category.HasValue || cm.Club.Category == category.Value) &&
+                (string.IsNullOrWhiteSpace(searchTerm) || cm.Club.Name.Contains(searchTerm))));
+        }
+
+        return await query
+            .OrderBy(u => u.FullName)
+            .Select(u => new UserProfileDto(
+                u.Id, u.FullName, u.Username, u.Email,
+                u.StudentCode, u.Phone, u.AvatarUrl, u.CoverUrl,
+                u.Role.ToString(), u.Status.ToString(), u.IsEmailVerified, u.CreatedAt))
+            .ToListAsync();
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

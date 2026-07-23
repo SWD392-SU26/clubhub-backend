@@ -6,6 +6,7 @@ namespace ClubHub.API.Services.Interfaces;
 
 public interface IEventService
 {
+    Task<PagedResult<EventDto>> GetAllEventsAsync(Guid? clubId, int page, int pageSize);
     Task<PagedResult<EventDto>> GetClubEventsAsync(Guid clubId, int page, int pageSize);
     Task<EventDto?> GetEventByIdAsync(Guid eventId);
     Task<ApiResult<EventDto>> CreateEventAsync(Guid clubId, CreateEventRequest request, Guid createdBy);

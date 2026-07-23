@@ -23,6 +23,27 @@ public class EventService : IEventService
         _auditService = auditService;
     }
 
+    public async Task<PagedResult<EventDto>> GetAllEventsAsync(Guid? clubId, int page, int pageSize)
+    {
+        var query = _uow.Events.Query()
+            .Include(e => e.Club)
+            .Include(e => e.Registrations)
+            .Where(e => e.Status == EventStatus.Published || e.Status == EventStatus.Ongoing);
+
+        if (clubId.HasValue)
+            query = query.Where(e => e.ClubId == clubId.Value);
+
+        var total = await query.CountAsync();
+        var items = await query
+            .OrderByDescending(e => e.StartTime)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(e => MapToDto(e))
+            .ToListAsync();
+
+        return new PagedResult<EventDto>(items, page, pageSize, total);
+    }
+
     public async Task<PagedResult<EventDto>> GetClubEventsAsync(Guid clubId, int page, int pageSize)
     {
         var query = _uow.Events.QueryClubEvents(clubId);
@@ -61,6 +82,7 @@ public class EventService : IEventService
             Name = req.Name,
             Description = req.Description,
             Location = req.Location,
+            ImageUrl = req.ImageUrl,
             StartTime = req.StartTime,
             EndTime = req.EndTime,
             Capacity = req.Capacity,
@@ -98,9 +120,13 @@ public class EventService : IEventService
         if (!await IsClubAdminAsync(ev.ClubId, requesterId))
             return ApiResult<EventDto>.Failure("Bạn không có quyền chỉnh sửa sự kiện này.");
 
+        if (ev.Status is EventStatus.Completed or EventStatus.Cancelled)
+            return ApiResult<EventDto>.Failure("Không thể chỉnh sửa sự kiện đã kết thúc hoặc đã hủy.");
+
         if (req.Name != null) ev.Name = req.Name;
         if (req.Description != null) ev.Description = req.Description;
         if (req.Location != null) ev.Location = req.Location;
+        if (req.ImageUrl != null) ev.ImageUrl = req.ImageUrl;
         if (req.StartTime.HasValue) ev.StartTime = req.StartTime.Value;
         if (req.EndTime.HasValue) ev.EndTime = req.EndTime.Value;
         if (req.Capacity.HasValue) ev.Capacity = req.Capacity;
@@ -215,7 +241,7 @@ public class EventService : IEventService
     {
         return await _uow.EventRegistrations.QueryMyRegistrations(userId)
             .Select(r => new EventRegistrationDto(
-                r.Id, r.EventId, r.Event.Name,
+                r.Id, r.EventId, r.Event.Name, r.Event.ImageUrl,
                 r.IsCheckedIn, r.CheckInTime, r.RegisteredAt))
             .ToListAsync();
     }
@@ -228,7 +254,7 @@ public class EventService : IEventService
         var items = await query
             .Skip((page - 1) * pageSize).Take(pageSize)
             .Select(r => new EventRegistrationDto(
-                r.Id, r.EventId, r.Event.Name,
+                r.Id, r.EventId, r.Event.Name, r.Event.ImageUrl,
                 r.IsCheckedIn, r.CheckInTime, r.RegisteredAt))
             .ToListAsync();
 
@@ -245,7 +271,7 @@ public class EventService : IEventService
 
     private static EventDto MapToDto(Event e) => new(
         e.Id, e.ClubId, e.Club?.Name ?? "", e.Name, e.Description,
-        e.Location, e.StartTime, e.EndTime, e.Capacity,
+        e.Location, e.ImageUrl, e.StartTime, e.EndTime, e.Capacity,
         e.Registrations?.Count(r => !r.IsCancelled) ?? 0,
         e.Status.ToString(), e.CreatedAt);
 }

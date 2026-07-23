@@ -19,6 +19,8 @@ public class FeedbackController : ControllerBase
     /// <summary>[Club Member] Gửi feedback sau sự kiện</summary>
     [HttpPost]
     [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<FeedbackDto>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> Submit(Guid eventId, [FromBody] SubmitFeedbackRequest request)
     {
         var result = await _feedbackService.SubmitFeedbackAsync(eventId, GetUserId(), request);
@@ -30,6 +32,7 @@ public class FeedbackController : ControllerBase
     /// <summary>Xem tổng hợp feedback của sự kiện</summary>
     [HttpGet]
     [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<FeedbackSummaryDto>), 200)]
     public async Task<IActionResult> GetFeedback(Guid eventId)
     {
         var result = await _feedbackService.GetEventFeedbackAsync(eventId);

@@ -15,8 +15,21 @@ public class EventController : ControllerBase
 
     public EventController(IEventService eventService) => _eventService = eventService;
 
+    /// <summary>Lấy danh sách sự kiện (public, có thể filter theo CLB)</summary>
+    [HttpGet("api/events")]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<EventDto>>), 200)]
+    public async Task<IActionResult> GetAll(
+        [FromQuery] Guid? clubId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10)
+    {
+        var result = await _eventService.GetAllEventsAsync(clubId, page, pageSize);
+        return Ok(ApiResponse.Ok(result));
+    }
+
     /// <summary>Lấy danh sách sự kiện của CLB</summary>
     [HttpGet("api/clubs/{clubId:guid}/events")]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<EventDto>>), 200)]
     public async Task<IActionResult> GetClubEvents(Guid clubId,
         [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
     {
@@ -26,6 +39,8 @@ public class EventController : ControllerBase
 
     /// <summary>Xem chi tiết sự kiện</summary>
     [HttpGet("api/events/{eventId:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<EventDto>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 404)]
     public async Task<IActionResult> GetById(Guid eventId)
     {
         var result = await _eventService.GetEventByIdAsync(eventId);
@@ -37,6 +52,8 @@ public class EventController : ControllerBase
     /// <summary>[Club Admin] Tạo sự kiện mới</summary>
     [HttpPost("api/clubs/{clubId:guid}/events")]
     [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<EventDto>), 201)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> Create(Guid clubId, [FromBody] CreateEventRequest request)
     {
         var result = await _eventService.CreateEventAsync(clubId, request, GetUserId());
@@ -48,6 +65,8 @@ public class EventController : ControllerBase
     /// <summary>[Club Admin] Cập nhật sự kiện</summary>
     [HttpPut("api/events/{eventId:guid}")]
     [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<EventDto>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> Update(Guid eventId, [FromBody] UpdateEventRequest request)
     {
         var result = await _eventService.UpdateEventAsync(eventId, request, GetUserId());
@@ -57,6 +76,8 @@ public class EventController : ControllerBase
     /// <summary>[Club Admin] Hủy/xóa sự kiện</summary>
     [HttpDelete("api/events/{eventId:guid}")]
     [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> Delete(Guid eventId)
     {
         var result = await _eventService.DeleteEventAsync(eventId, GetUserId());
@@ -66,6 +87,8 @@ public class EventController : ControllerBase
     /// <summary>[Club Member] Đăng ký tham gia sự kiện</summary>
     [HttpPost("api/events/{eventId:guid}/register")]
     [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> Register(Guid eventId)
     {
         var result = await _eventService.RegisterForEventAsync(eventId, GetUserId());
@@ -77,6 +100,8 @@ public class EventController : ControllerBase
     /// <summary>[Club Member] Hủy đăng ký sự kiện</summary>
     [HttpDelete("api/events/{eventId:guid}/register")]
     [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> CancelRegister(Guid eventId)
     {
         var result = await _eventService.CancelRegistrationAsync(eventId, GetUserId());
@@ -86,6 +111,8 @@ public class EventController : ControllerBase
     /// <summary>[Club Admin] Check-in thành viên vào sự kiện</summary>
     [HttpPost("api/events/{eventId:guid}/checkin/{userId:guid}")]
     [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
     public async Task<IActionResult> CheckIn(Guid eventId, Guid userId)
     {
         var result = await _eventService.CheckInAsync(eventId, userId, GetUserId());
@@ -95,6 +122,7 @@ public class EventController : ControllerBase
     /// <summary>Xem danh sách đăng ký của sự kiện</summary>
     [HttpGet("api/events/{eventId:guid}/registrations")]
     [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<EventRegistrationDto>>), 200)]
     public async Task<IActionResult> GetRegistrations(Guid eventId,
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
@@ -105,6 +133,7 @@ public class EventController : ControllerBase
     /// <summary>Xem sự kiện mình đã đăng ký</summary>
     [HttpGet("api/my-events")]
     [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<List<EventRegistrationDto>>), 200)]
     public async Task<IActionResult> GetMyRegistrations()
     {
         var result = await _eventService.GetMyRegistrationsAsync(GetUserId());

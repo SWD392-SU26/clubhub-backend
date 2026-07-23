@@ -9,6 +9,7 @@ public record CreateEventRequest(
     [Required, MaxLength(200)] string Name,
     string? Description,
     string? Location,
+    string? ImageUrl,
     [Required] DateTime StartTime,
     [Required] DateTime EndTime,
     int? Capacity
@@ -18,6 +19,7 @@ public record UpdateEventRequest(
     [MaxLength(200)] string? Name,
     string? Description,
     string? Location,
+    string? ImageUrl,
     DateTime? StartTime,
     DateTime? EndTime,
     int? Capacity,
@@ -33,6 +35,7 @@ public record EventDto(
     string Name,
     string? Description,
     string? Location,
+    string? ImageUrl,
     DateTime StartTime,
     DateTime EndTime,
     int? Capacity,
@@ -45,6 +48,7 @@ public record EventRegistrationDto(
     Guid Id,
     Guid EventId,
     string EventName,
+    string? EventImageUrl,
     bool IsCheckedIn,
     DateTime? CheckInTime,
     DateTime RegisteredAt
