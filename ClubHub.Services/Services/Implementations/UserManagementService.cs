@@ -31,7 +31,7 @@ public class UserManagementService : IUserManagementService
             .Take(pageSize)
             .Select(u => new UserProfileDto(
                 u.Id, u.FullName, u.Username, u.Email,
-                u.StudentCode, u.Phone, u.AvatarUrl,
+                u.StudentCode, u.Phone, u.AvatarUrl, u.CoverUrl,
                 u.Role.ToString(), u.Status.ToString(), u.IsEmailVerified, u.CreatedAt))
             .ToListAsync();
 

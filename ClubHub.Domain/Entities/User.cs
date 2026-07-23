@@ -27,6 +27,9 @@ public class User
 
     public string? AvatarUrl { get; set; }
 
+    /// <summary>Ảnh bìa (cover photo) giống Facebook</summary>
+    public string? CoverUrl { get; set; }
+
     /// <summary>Vai trò hợp nhất: Student, ClubMember, ClubAdmin, UniversityAdmin</summary>
     public Role Role { get; set; } = Role.Student;
 

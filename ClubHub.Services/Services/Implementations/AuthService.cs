@@ -183,6 +183,7 @@ public class AuthService : IAuthService
         if (req.FullName != null) user.FullName = req.FullName;
         if (req.Phone != null) user.Phone = req.Phone;
         if (req.AvatarUrl != null) user.AvatarUrl = req.AvatarUrl;
+        if (req.CoverUrl != null) user.CoverUrl = req.CoverUrl;
         user.UpdatedAt = DateTime.UtcNow;
 
         await _uow.SaveChangesAsync();
@@ -246,7 +247,7 @@ public class AuthService : IAuthService
 
     private static UserProfileDto MapToProfile(User u) => new(
         u.Id, u.FullName, u.Username, u.Email,
-        u.StudentCode, u.Phone, u.AvatarUrl,
+        u.StudentCode, u.Phone, u.AvatarUrl, u.CoverUrl,
         u.Role.ToString(), u.Status.ToString(), u.IsEmailVerified, u.CreatedAt
     );
 }

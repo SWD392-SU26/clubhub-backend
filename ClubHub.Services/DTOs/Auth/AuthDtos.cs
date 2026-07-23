@@ -48,7 +48,8 @@ public record ResetPasswordRequest(
 public record UpdateProfileRequest(
     [MaxLength(100)] string? FullName,
     [MaxLength(20)] string? Phone,
-    string? AvatarUrl
+    string? AvatarUrl,
+    string? CoverUrl
 );
 
 public record UserProfileDto(
@@ -59,6 +60,7 @@ public record UserProfileDto(
     string? StudentCode,
     string? Phone,
     string? AvatarUrl,
+    string? CoverUrl,
     string Role,
     string Status,
     bool IsEmailVerified,
