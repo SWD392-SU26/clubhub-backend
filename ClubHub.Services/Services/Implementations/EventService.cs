@@ -120,6 +120,9 @@ public class EventService : IEventService
         if (!await IsClubAdminAsync(ev.ClubId, requesterId))
             return ApiResult<EventDto>.Failure("Bạn không có quyền chỉnh sửa sự kiện này.");
 
+        if (ev.Status is EventStatus.Completed or EventStatus.Cancelled)
+            return ApiResult<EventDto>.Failure("Không thể chỉnh sửa sự kiện đã kết thúc hoặc đã hủy.");
+
         if (req.Name != null) ev.Name = req.Name;
         if (req.Description != null) ev.Description = req.Description;
         if (req.Location != null) ev.Location = req.Location;
