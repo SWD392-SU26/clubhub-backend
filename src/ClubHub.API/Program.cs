@@ -70,7 +70,10 @@ builder.Services.AddAuthorization();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
-        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+        policy.WithOrigins("https://clubhub-project.vercel.app")
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials());
 });
 
 // ── Repositories & Unit of Work ───────────────────────────────────────────────
