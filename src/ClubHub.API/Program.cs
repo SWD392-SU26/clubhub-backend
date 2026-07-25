@@ -199,6 +199,44 @@ if (app.Environment.IsDevelopment())
     {
         Console.WriteLine("[Seed] Admin account already exists, skipping.");
     }
+
+    // ── Seed 6 Student Accounts ────────────────────────────────────────────────
+    var students = new[]
+    {
+        new { FullName = "Nguyễn Văn An",    Username = "nguyenvanan",    Email = "an@gmail.com",    StudentCode = "SV001" },
+        new { FullName = "Trần Thị Bình",    Username = "tranthibinh",    Email = "binh@gmail.com",   StudentCode = "SV002" },
+        new { FullName = "Lê Văn Cường",     Username = "levancuong",     Email = "cuong@gmail.com",  StudentCode = "SV003" },
+        new { FullName = "Phạm Thị Dung",    Username = "phamthidung",    Email = "dung@gmail.com",   StudentCode = "SV004" },
+        new { FullName = "Hoàng Văn Em",     Username = "hoangvanem",     Email = "em@gmail.com",     StudentCode = "SV005" },
+        new { FullName = "Vũ Thị Phương",    Username = "vuthiphuong",    Email = "phuong@gmail.com", StudentCode = "SV006" },
+    };
+
+    foreach (var s in students)
+    {
+        if (!db.Users.Any(u => u.Email == s.Email))
+        {
+            var student = new ClubHub.API.Entities.User
+            {
+                Id           = Guid.NewGuid(),
+                FullName     = s.FullName,
+                Username     = s.Username,
+                Email        = s.Email,
+                StudentCode  = s.StudentCode,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("12345"),
+                Role         = ClubHub.API.Enums.Role.Student,
+                Status       = ClubHub.API.Enums.UserStatus.Active,
+                IsEmailVerified = true,
+                CreatedAt    = DateTime.UtcNow
+            };
+            db.Users.Add(student);
+            await db.SaveChangesAsync();
+            Console.WriteLine($"[Seed] Student account created: {s.Email}");
+        }
+        else
+        {
+            Console.WriteLine($"[Seed] Student account {s.Email} already exists, skipping.");
+        }
+    }
 }
 
 app.Run();
